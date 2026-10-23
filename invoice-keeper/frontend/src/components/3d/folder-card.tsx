@@ -80,7 +80,7 @@ export function FolderCard({
         }}
         className={cn(
           "relative rounded-2xl p-5 cursor-pointer transition-shadow duration-300",
-          "bg-gradient-to-br from-[#16161f] to-[#0f0f16]",
+          "bg-gradient-to-br from-[#0c0c0c] to-[#080808]",
           "border border-white/[0.06]",
           hovered && "shadow-2xl shadow-blue-500/10 border-white/10"
         )}
@@ -103,7 +103,7 @@ export function FolderCard({
             background: isOverdue
               ? "linear-gradient(90deg, #ef4444, #f87171)"
               : isPaid
-              ? "linear-gradient(90deg, #22c55e, #4ade80)"
+              ? "linear-gradient(90deg, #3b82f6, #60a5fa)"
               : "linear-gradient(90deg, #3b82f6, #60a5fa)",
             transform: "translateZ(20px)",
           }}
@@ -125,7 +125,7 @@ export function FolderCard({
                 </span>
               )}
               {isPaid && (
-                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">
                   Оплачено
                 </span>
               )}

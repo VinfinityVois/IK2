@@ -54,38 +54,40 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
   return (
     <AnimatePresence>
       {open && (
-        <>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
           />
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md"
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ type: "spring", damping: 28, stiffness: 320 }}
+            className="relative w-full max-w-lg z-10"
           >
-            <div className="bg-[#12121a] border border-white/10 rounded-2xl p-6 shadow-2xl mx-4">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-white">
+            <div className="bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <h2 className="text-base font-medium text-white tracking-tight">
                   Новый платёж
                 </h2>
                 <button
                   onClick={onClose}
-                  className="text-gray-500 hover:text-white transition-colors text-2xl leading-none"
+                  className="text-neutral-500 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center"
                 >
                   ×
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                {/* Name - full width */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">
+                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
                     Название
                   </label>
                   <input
@@ -93,13 +95,14 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="Аренда офиса"
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1.5">
+                {/* Amount + Currency - horizontal */}
+                <div className="grid grid-cols-5 gap-3">
+                  <div className="col-span-3">
+                    <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
                       Сумма
                     </label>
                     <input
@@ -108,26 +111,21 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                       step="0.01"
                       min="0.01"
                       value={form.amount}
-                      onChange={(e) =>
-                        setForm({ ...form, amount: e.target.value })
-                      }
+                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
                       placeholder="50000"
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1.5">
+                  <div className="col-span-2">
+                    <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
                       Валюта
                     </label>
                     <select
                       value={form.currency}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
-                          currency: e.target.value as any,
-                        })
+                        setForm({ ...form, currency: e.target.value as any })
                       }
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                     >
                       <option value="RUB">RUB</option>
                       <option value="USD">USD</option>
@@ -136,8 +134,9 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
+                {/* Date */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">
+                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
                     Дата ближайшей оплаты
                   </label>
                   <input
@@ -147,13 +146,14 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                     onChange={(e) =>
                       setForm({ ...form, next_due_date: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
                   />
                 </div>
 
+                {/* Description */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1.5">
-                    Описание (необязательно)
+                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
+                    Описание
                   </label>
                   <textarea
                     value={form.description}
@@ -161,7 +161,8 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                       setForm({ ...form, description: e.target.value })
                     }
                     rows={2}
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all resize-none"
+                    placeholder="Необязательно"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none"
                   />
                 </div>
 
@@ -171,18 +172,19 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-2">
+                {/* Actions - horizontal */}
+                <div className="flex gap-3 pt-1">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-3 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10 transition-all"
+                    className="flex-1 py-2.5 rounded-lg border border-white/10 text-neutral-400 text-sm hover:bg-white/5 hover:text-white transition-all"
                   >
                     Отмена
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-50 transition-all shadow-lg shadow-blue-600/20"
+                    className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50 transition-all"
                   >
                     {loading ? "Создание..." : "Создать"}
                   </button>
@@ -190,7 +192,7 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
               </form>
             </div>
           </motion.div>
-        </>
+        </div>
       )}
     </AnimatePresence>
   );

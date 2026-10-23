@@ -10,9 +10,10 @@ import {
   updatePaymentOccurrence,
 } from "@/lib/api";
 import { SparklesBackground } from "@/components/ui/sparkles-bg";
-import { AppDock } from "@/components/layout/app-dock";
 import { FolderCard } from "@/components/3d/folder-card";
 import { AddPaymentModal } from "@/components/dashboard/add-payment-modal";
+import { PaymentTimeline } from "@/components/dashboard/payment-timeline";
+import { AppDock } from "@/components/layout/app-dock";
 import { cn } from "@/lib/utils";
 
 interface Occurrence {
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<SummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unpaid" | "overdue" | "paid">("all");
+  const [view, setView] = useState<"cards" | "timeline">("timeline");
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
@@ -102,66 +104,45 @@ export default function DashboardPage() {
 
   if (!user && loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center text-gray-400">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span>Загрузка личного дела...</span>
-        </div>
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center text-neutral-500">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100 relative overflow-hidden">
+    <div className="min-h-screen bg-[#050505] text-neutral-100 relative">
       <SparklesBackground />
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 bg-[#0a0a0f]/70 backdrop-blur-xl sticky top-0">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <header className="relative z-20 border-b border-white/[0.06] bg-[#050505]/80 backdrop-blur-xl sticky top-0">
+        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-2"
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-xs font-bold">
-                IK
-              </div>
-              <h1 className="text-lg font-semibold tracking-tight">
-                Invoice Keeper
-              </h1>
-            </motion.div>
-            <span className="text-[11px] text-gray-500 hidden sm:inline border border-white/10 px-2 py-0.5 rounded-full">
+            <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
+              IK
+            </div>
+            <span className="text-sm font-medium tracking-tight">Invoice Keeper</span>
+            <span className="text-[10px] text-neutral-600 border border-white/10 px-1.5 py-0.5 rounded hidden sm:inline">
               Личное дело
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             {user?.role === "admin" && (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+              <button
                 onClick={() => setModalOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white shadow-lg shadow-blue-600/20 transition-colors"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white transition-colors"
               >
-                <span className="text-lg leading-none">+</span>
-                Добавить платёж
-              </motion.button>
+                + Платёж
+              </button>
             )}
-
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400">{user?.username}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400 uppercase">
-                {user?.role}
-              </span>
-            </div>
-
+            <span className="text-xs text-neutral-500">{user?.username}</span>
             <button
               onClick={() => {
                 logout();
                 router.push("/login");
               }}
-              className="text-sm text-gray-500 hover:text-white transition-colors"
+              className="text-xs text-neutral-600 hover:text-white transition-colors"
             >
               Выйти
             </button>
@@ -169,119 +150,123 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-6 py-10">
-        {/* Title */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
-        >
-          <h2 className="text-3xl font-bold tracking-tight mb-2">
-            Регулярные обязательства
-          </h2>
-          <p className="text-gray-500">
-            Контроль платежей · напоминания · история
-          </p>
-        </motion.div>
+      <main className="relative z-10 max-w-5xl mx-auto px-6 py-8 pb-28">
+        {/* Title row */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              Регулярные обязательства
+            </h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              Контроль · напоминания · история
+            </p>
+          </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          {summary.map((s, i) => (
-            <motion.div
-              key={s.currency}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.08 }}
-              className="relative group"
+          {/* View switcher */}
+          <div className="flex rounded-lg border border-white/10 p-0.5 bg-white/[0.02]">
+            <button
+              onClick={() => setView("timeline")}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs transition-all",
+                view === "timeline"
+                  ? "bg-white text-black font-medium"
+                  : "text-neutral-500 hover:text-white"
+              )}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-violet-600/5 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative bg-[#12121a]/80 backdrop-blur border border-white/[0.06] rounded-2xl p-5 hover:border-white/10 transition-colors">
-                <div className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">
-                  {s.currency}
+              Timeline
+            </button>
+            <button
+              onClick={() => setView("cards")}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs transition-all",
+                view === "cards"
+                  ? "bg-white text-black font-medium"
+                  : "text-neutral-500 hover:text-white"
+              )}
+            >
+              Карточки
+            </button>
+          </div>
+        </div>
+
+        {/* Summary - horizontal strip */}
+        {summary.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+            {summary.map((s) => (
+              <div
+                key={s.currency}
+                className="flex items-center justify-between px-4 py-3 rounded-lg border border-white/[0.06] bg-white/[0.02]"
+              >
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-600">
+                    {s.currency}
+                  </div>
+                  <div className="text-lg font-semibold text-white tabular-nums">
+                    {formatMoney(s.total_amount, s.currency)}
+                  </div>
                 </div>
-                <div className="text-2xl font-bold tracking-tight mb-4">
-                  {formatMoney(s.total_amount, s.currency)}
-                </div>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  <span className="text-emerald-400/90">
-                    ✓ {s.count_paid} оплачено
-                  </span>
-                  <span className="text-amber-400/90">
-                    ○ {s.count_unpaid} ждёт
-                  </span>
-                  <span className="text-red-400/90">
-                    ! {s.count_overdue} просрочено
-                  </span>
+                <div className="text-right text-[11px] space-y-0.5">
+                  <div className="text-blue-400">{s.count_paid} оплачено</div>
+                  <div className="text-neutral-500">{s.count_unpaid} ждёт</div>
+                  {s.count_overdue > 0 && (
+                    <div className="text-red-400">{s.count_overdue} просрочено</div>
+                  )}
                 </div>
               </div>
-            </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {(
+            [
+              ["all", "Все"],
+              ["unpaid", "Не оплачены"],
+              ["overdue", "Просрочены"],
+              ["paid", "Оплачены"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={cn(
+                "px-3 py-1 rounded-md text-xs transition-all",
+                filter === key
+                  ? "bg-blue-600 text-white"
+                  : "text-neutral-500 hover:text-white border border-white/10 hover:border-white/20"
+              )}
+            >
+              {label}
+            </button>
           ))}
         </div>
 
-        {/* Filters + Add button mobile */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="flex gap-2">
-            {(
-              [
-                ["all", "Все"],
-                ["unpaid", "Не оплачены"],
-                ["overdue", "Просрочены"],
-                ["paid", "Оплачены"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={cn(
-                  "px-4 py-1.5 rounded-full text-sm transition-all duration-200",
-                  filter === key
-                    ? "bg-white text-black font-medium"
-                    : "bg-white/5 text-gray-400 hover:bg-white/10"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {user?.role === "admin" && (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="sm:hidden px-4 py-2 rounded-xl bg-blue-600 text-sm font-medium"
-            >
-              + Добавить
-            </button>
-          )}
-        </div>
-
-        {/* Cards grid */}
+        {/* Content */}
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
-            <div className="text-6xl mb-4 opacity-20">📁</div>
-            <p className="text-gray-500 mb-6">
+          <div className="text-center py-20">
+            <p className="text-neutral-600 text-sm mb-4">
               {occurrences.length === 0
-                ? "Пока нет платежей в личном деле"
-                : "Нет платежей по выбранному фильтру"}
+                ? "Нет платежей"
+                : "Нет платежей по фильтру"}
             </p>
             {user?.role === "admin" && occurrences.length === 0 && (
               <button
                 onClick={() => setModalOpen(true)}
-                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-sm text-white"
               >
                 Добавить первый платёж
               </button>
             )}
-          </motion.div>
+          </div>
+        ) : view === "timeline" ? (
+          <PaymentTimeline items={filtered} onTogglePaid={handleTogglePaid} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filtered.map((item, i) => (
               <FolderCard
                 key={item.id}

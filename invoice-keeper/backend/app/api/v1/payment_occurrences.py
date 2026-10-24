@@ -11,6 +11,7 @@ from app.core.deps import get_current_user
 from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
 from app.models.user import User
+from app.services.periods import create_next_period_after_payment
 from app.schemas.payment_occurrence import (
     PaymentOccurrenceList,
     PaymentOccurrenceOut,
@@ -55,6 +56,13 @@ async def list_payment_occurrences(
 
     result = await db.execute(query)
     items = result.scalars().all()
+
+    # Пользователь видит только свои платежи
+    if current_user.role != "admin":
+        items = [
+            i for i in items
+            if i.recurring_payment and i.recurring_payment.owner_id == current_user.id
+        ]
 
     # Фильтры после загрузки (is_overdue — вычисляемое)
     if is_paid is not None:
@@ -106,13 +114,14 @@ async def update_payment_occurrence(
     if not occ:
         raise HTTPException(status_code=404, detail="Payment occurrence not found")
 
+    just_paid = False
     if data.is_paid is not None:
+        if data.is_paid and not occ.is_paid:
+            just_paid = True
         occ.is_paid = data.is_paid
         if data.is_paid:
-            # Если оплатили и дату не передали — ставим сегодня
             occ.paid_at = data.paid_at or date.today()
         else:
-            # Отмена оплаты — очищаем дату
             occ.paid_at = None
 
     if data.paid_at is not None and occ.is_paid:
@@ -120,4 +129,9 @@ async def update_payment_occurrence(
 
     await db.commit()
     await db.refresh(occ)
+
+    if just_paid:
+        await create_next_period_after_payment(db, occ)
+        await db.refresh(occ)
+
     return _to_out(occ)

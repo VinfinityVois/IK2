@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -12,9 +12,12 @@ class RecurringPayment(Base):
     __tablename__ = "recurring_payments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)  # RUB | USD | EUR
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     next_due_date: Mapped[date] = mapped_column(Date, nullable=False)
     periodicity: Mapped[str] = mapped_column(String(16), default="monthly", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

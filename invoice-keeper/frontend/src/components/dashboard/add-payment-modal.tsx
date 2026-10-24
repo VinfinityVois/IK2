@@ -4,52 +4,81 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createRecurringPayment } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { DateSelect } from "@/components/ui/date-select";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initial?: {
+    id?: number;
+    name?: string;
+    amount?: string;
+    currency?: string;
+    next_due_date?: string;
+    description?: string;
+  } | null;
+  mode?: "create" | "edit";
 }
 
-export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
+export function AddPaymentModal({
+  open,
+  onClose,
+  onSuccess,
+  initial,
+  mode = "create",
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    name: "",
-    amount: "",
-    currency: "RUB" as "RUB" | "USD" | "EUR",
-    next_due_date: "",
-    description: "",
+    name: initial?.name || "",
+    amount: initial?.amount || "",
+    currency: (initial?.currency as "RUB" | "USD" | "EUR") || "RUB",
+    next_due_date: initial?.next_due_date || "",
+    description: initial?.description || "",
   });
+
+  // sync when opening with initial
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open && !prevOpen) {
+    setPrevOpen(true);
+    setForm({
+      name: initial?.name || "",
+      amount: initial?.amount || "",
+      currency: (initial?.currency as any) || "RUB",
+      next_due_date: initial?.next_due_date || "",
+      description: initial?.description || "",
+    });
+    setError("");
+  }
+  if (!open && prevOpen) setPrevOpen(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await createRecurringPayment({
-        name: form.name,
-        amount: parseFloat(form.amount),
-        currency: form.currency,
-        next_due_date: form.next_due_date,
-        periodicity: "monthly",
-        description: form.description || null,
-      });
+      if (mode === "create") {
+        await createRecurringPayment({
+          name: form.name,
+          amount: parseFloat(form.amount),
+          currency: form.currency,
+          next_due_date: form.next_due_date,
+          periodicity: "monthly",
+          description: form.description || null,
+        });
+      }
       onSuccess();
       onClose();
-      setForm({
-        name: "",
-        amount: "",
-        currency: "RUB",
-        next_due_date: "",
-        description: "",
-      });
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Ошибка при создании");
+      setError(err?.response?.data?.detail || "Ошибка сохранения");
     } finally {
       setLoading(false);
     }
   };
+
+  const field =
+    "w-full px-3 py-2.5 rounded-lg bg-[#111] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all";
 
   return (
     <AnimatePresence>
@@ -60,49 +89,50 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
           />
-
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            initial={{ opacity: 0, scale: 0.97, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="relative w-full max-w-lg z-10"
+            exit={{ opacity: 0, scale: 0.97, y: 10 }}
+            transition={{ type: "spring", damping: 28, stiffness: 340 }}
+            className="relative w-full max-w-xl z-10"
           >
-            <div className="bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl">
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                <h2 className="text-base font-medium text-white tracking-tight">
-                  Новый платёж
-                </h2>
+            <div className="bg-[#0c0c0c] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+                <div>
+                  <h2 className="text-base font-medium text-white">
+                    {mode === "edit" ? "Редактирование" : "Новый платёж"}
+                  </h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Регулярное обязательство · ежемесячно
+                  </p>
+                </div>
                 <button
                   onClick={onClose}
-                  className="text-neutral-500 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg text-neutral-500 hover:text-white hover:bg-white/5 flex items-center justify-center transition-colors"
                 >
                   ×
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                {/* Name - full width */}
-                <div>
-                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
-                    Название
-                  </label>
-                  <input
-                    required
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Аренда офиса"
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
-                  />
-                </div>
+              <form onSubmit={handleSubmit} className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Название
+                    </label>
+                    <input
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="Аренда офиса"
+                      className={field}
+                    />
+                  </div>
 
-                {/* Amount + Currency - horizontal */}
-                <div className="grid grid-cols-5 gap-3">
-                  <div className="col-span-3">
-                    <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
+                  <div>
+                    <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
                       Сумма
                     </label>
                     <input
@@ -113,67 +143,66 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                       value={form.amount}
                       onChange={(e) => setForm({ ...form, amount: e.target.value })}
                       placeholder="50000"
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                      className={field}
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
+
+                  <div>
+                    <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
                       Валюта
                     </label>
-                    <select
-                      value={form.currency}
-                      onChange={(e) =>
-                        setForm({ ...form, currency: e.target.value as any })
-                      }
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
-                    >
-                      <option value="RUB">RUB</option>
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                    </select>
+                    <div className="flex gap-2">
+                      {(["RUB", "USD", "EUR"] as const).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setForm({ ...form, currency: c })}
+                          className={cn(
+                            "flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all",
+                            form.currency === c
+                              ? "bg-blue-600 border-blue-500 text-white"
+                              : "bg-[#111] border-white/10 text-neutral-400 hover:border-white/20"
+                          )}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Date */}
-                <div>
-                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
-                    Дата ближайшей оплаты
-                  </label>
-                  <input
-                    required
-                    type="date"
-                    value={form.next_due_date}
-                    onChange={(e) =>
-                      setForm({ ...form, next_due_date: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
-                  />
-                </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Дата ближайшей оплаты
+                    </label>
+                    <DateSelect
+                      value={form.next_due_date || "2026-10-23"}
+                      onChange={(v) => setForm({ ...form, next_due_date: v })}
+                    />
+                  </div>
 
-                {/* Description */}
-                <div>
-                  <label className="block text-xs text-neutral-500 uppercase tracking-wider mb-2">
-                    Описание
-                  </label>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
-                    rows={2}
-                    placeholder="Необязательно"
-                    className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none"
-                  />
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
+                      Описание
+                    </label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      rows={2}
+                      placeholder="Необязательно"
+                      className={cn(field, "resize-none")}
+                    />
+                  </div>
                 </div>
 
                 {error && (
-                  <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  <div className="mt-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                     {error}
                   </div>
                 )}
 
-                {/* Actions - horizontal */}
-                <div className="flex gap-3 pt-1">
+                <div className="flex gap-3 mt-6">
                   <button
                     type="button"
                     onClick={onClose}
@@ -186,7 +215,11 @@ export function AddPaymentModal({ open, onClose, onSuccess }: Props) {
                     disabled={loading}
                     className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50 transition-all"
                   >
-                    {loading ? "Создание..." : "Создать"}
+                    {loading
+                      ? "Сохранение..."
+                      : mode === "edit"
+                      ? "Сохранить"
+                      : "Создать"}
                   </button>
                 </div>
               </form>

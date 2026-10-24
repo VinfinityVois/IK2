@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/auth";
 import { api } from "@/lib/api";
-import { SparklesBackground } from "@/components/ui/sparkles-bg";
 import { cn } from "@/lib/utils";
 
 interface UserItem {
@@ -21,23 +20,24 @@ export default function UsersPage() {
   const { user, token, fetchMe } = useAuthStore();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
 
   useEffect(() => {
     if (!token && !localStorage.getItem("access_token")) {
       router.push("/login");
       return;
     }
-    fetchMe().then(() => {
-      if (user && user.role !== "admin") {
-        router.push("/dashboard");
-        return;
-      }
+    fetchMe().then((u) => {
       loadUsers();
     });
   }, []);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") router.push("/dashboard");
+  }, [user]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -57,7 +57,9 @@ export default function UsersPage() {
     try {
       await api.post("/users", form);
       setForm({ username: "", password: "" });
-      setShowForm(false);
+      setModal(false);
+      setOk("Пользователь создан");
+      setTimeout(() => setOk(""), 2500);
       loadUsers();
     } catch (err: any) {
       setError(err?.response?.data?.detail || "Ошибка создания");
@@ -68,132 +70,166 @@ export default function UsersPage() {
     if (!confirm("Удалить пользователя?")) return;
     try {
       await api.delete(`/users/${id}`);
+      setOk("Удалён");
+      setTimeout(() => setOk(""), 2000);
       loadUsers();
     } catch (e) {
       console.error(e);
     }
   };
 
+  const field =
+    "w-full px-3 py-2.5 rounded-lg bg-[#111] border border-white/10 text-white text-sm placeholder-neutral-600 focus:outline-none focus:border-blue-500/50";
+
   return (
-    <div className="min-h-screen bg-[#05050a] text-white relative">
-      <SparklesBackground />
-
-      <div className="relative z-10 max-w-4xl mx-auto px-6 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-10"
-        >
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Пользователи</h1>
-            <p className="text-gray-500 mt-1">Управление доступом к личному делу</p>
-          </div>
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#050505]/90 backdrop-blur-xl">
+        <div className="px-6 h-14 flex items-center justify-between">
+          <h1 className="text-sm font-medium">Пользователи</h1>
           <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium transition-colors"
+            onClick={() => setModal(true)}
+            className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white"
           >
-            {showForm ? "Отмена" : "+ Добавить"}
+            + Пользователь
           </button>
-        </motion.div>
+        </div>
+      </header>
 
-        {showForm && (
-          <motion.form
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            onSubmit={createUser}
-            className="mb-8 p-6 rounded-2xl bg-white/[0.03] border border-white/10 space-y-4"
-          >
-            <div className="grid sm:grid-cols-2 gap-4">
-              <input
-                required
-                placeholder="Логин"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
-              <input
-                required
-                type="password"
-                placeholder="Пароль"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
-            </div>
-            {error && (
-              <div className="text-red-400 text-sm">{error}</div>
-            )}
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium"
-            >
-              Создать пользователя
-            </button>
-          </motion.form>
+      <div className="px-6 py-6 max-w-[1000px]">
+        {ok && (
+          <div className="mb-4 px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/25 text-green-400 text-sm">
+            {ok}
+          </div>
         )}
 
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {users.map((u, i) => (
               <motion.div
                 key={u.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/10 transition-colors"
+                transition={{ delay: i * 0.04 }}
+                className="flex items-center gap-4 px-4 py-3 rounded-lg border border-white/[0.06] bg-[#0c0c0c] hover:border-white/10 transition-colors"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-sm font-bold">
-                    {u.username[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-medium">{u.username}</div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(u.created_at).toLocaleDateString("ru-RU")}
-                    </div>
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold">
+                  {u.username[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{u.username}</div>
+                  <div className="text-xs text-neutral-500">
+                    {new Date(u.created_at).toLocaleDateString("ru-RU")}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "text-[10px] uppercase px-2 py-0.5 rounded-full border",
-                      u.is_active
-                        ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
-                        : "border-red-500/30 text-red-400 bg-red-500/10"
-                    )}
-                  >
-                    {u.is_active ? "active" : "inactive"}
-                  </span>
-                  <button
-                    onClick={() => deleteUser(u.id)}
-                    className="text-sm text-gray-500 hover:text-red-400 transition-colors"
-                  >
-                    Удалить
-                  </button>
-                </div>
+                <span
+                  className={cn(
+                    "text-[10px] uppercase px-2 py-0.5 rounded border",
+                    u.is_active
+                      ? "border-green-500/30 text-green-400 bg-green-500/10"
+                      : "border-red-500/30 text-red-400 bg-red-500/10"
+                  )}
+                >
+                  {u.is_active ? "active" : "off"}
+                </span>
+                <button
+                  onClick={() => deleteUser(u.id)}
+                  className="text-xs text-neutral-500 hover:text-red-400 transition-colors"
+                >
+                  Удалить
+                </button>
               </motion.div>
             ))}
             {users.length === 0 && (
-              <div className="text-center text-gray-500 py-16">
-                Нет обычных пользователей
+              <div className="text-center text-neutral-600 py-16 text-sm">
+                Нет пользователей
               </div>
             )}
           </div>
         )}
-
-        <div className="mt-10">
-          <a
-            href="/dashboard"
-            className="text-sm text-gray-500 hover:text-white transition-colors"
-          >
-            ← Назад к платежам
-          </a>
-        </div>
       </div>
+
+      <AnimatePresence>
+        {modal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setModal(false)}
+              className="absolute inset-0 bg-black/75"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="relative w-full max-w-md bg-[#0c0c0c] border border-white/10 rounded-xl shadow-2xl z-10"
+            >
+              <div className="px-6 py-4 border-b border-white/[0.06] flex justify-between items-center">
+                <h2 className="text-base font-medium">Новый пользователь</h2>
+                <button
+                  onClick={() => setModal(false)}
+                  className="text-neutral-500 hover:text-white text-xl"
+                >
+                  ×
+                </button>
+              </div>
+              <form onSubmit={createUser} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
+                    Логин
+                  </label>
+                  <input
+                    required
+                    minLength={3}
+                    value={form.username}
+                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    className={field}
+                    placeholder="user1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
+                    Пароль
+                  </label>
+                  <input
+                    required
+                    minLength={6}
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className={field}
+                    placeholder="••••••••"
+                  />
+                </div>
+                {error && (
+                  <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {error}
+                  </div>
+                )}
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setModal(false)}
+                    className="flex-1 py-2.5 rounded-lg border border-white/10 text-neutral-400 text-sm"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+                  >
+                    Создать
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

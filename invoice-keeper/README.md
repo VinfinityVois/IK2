@@ -63,3 +63,20 @@ invoice-keeper/
 ## Обязательные эндпоинты
 
 См. `/api/v1/docs` после запуска.
+
+## Telegram-напоминания
+
+1. Создай бота через @BotFather, получи токен
+2. Узнай chat_id (напиши боту, затем открой `https://api.telegram.org/bot<TOKEN>/getUpdates`)
+3. В `backend/.env`:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_CHAT_ID=-1001234567890
+REMINDER_DAYS_BEFORE=3
+```
+
+4. Перезапусти backend. Воркер проверяет сроки каждые 5 минут.
+5. Ручной запуск: `POST /api/v1/admin/run-reminders`
+
+При старте создаются демо-платежи: аренда (RUB), VPS (USD), Figma (EUR).

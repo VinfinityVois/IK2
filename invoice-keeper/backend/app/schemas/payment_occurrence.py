@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PaymentOccurrenceOut(BaseModel):
@@ -13,6 +13,7 @@ class PaymentOccurrenceOut(BaseModel):
     paid_at: Optional[date] = None
     is_overdue: bool
     reminder_sent: bool
+    # Для удобства фронта
     name: Optional[str] = None
     amount: Optional[Decimal] = None
     currency: Optional[str] = None

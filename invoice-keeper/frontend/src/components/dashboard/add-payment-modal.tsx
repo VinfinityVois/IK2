@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createRecurringPayment } from "@/lib/api";
+import { isAxiosError } from "axios";
+import {
+  createRecurringPayment,
+  type RecurringPaymentCreate,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { DateSelect } from "@/components/ui/date-select";
-import { isAxiosError } from "axios";
-import type { RecurringPaymentCreate } from "@/lib/api";
 
 interface Props {
   open: boolean;
@@ -44,36 +46,76 @@ export function AddPaymentModal({
   const [prevOpen, setPrevOpen] = useState(false);
   if (open && !prevOpen) {
     setPrevOpen(true);
+  
+    const initialCurrency =
+      initial?.currency === "RUB" ||
+      initial?.currency === "USD" ||
+      initial?.currency === "EUR"
+        ? initial.currency
+        : "RUB";
+  
     setForm({
       name: initial?.name || "",
       amount: initial?.amount || "",
-      currency: (initial?.currency as any) || "RUB",
+      currency: initialCurrency,
       next_due_date: initial?.next_due_date || "",
       description: initial?.description || "",
     });
+  
     setError("");
+  }
+  
+  if (!open && prevOpen) {
+    setPrevOpen(false);
   }
   if (!open && prevOpen) setPrevOpen(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+  
+    const amount = Number(form.amount);
+  
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Введите корректную сумму");
+      return;
+    }
+  
+    if (!form.next_due_date) {
+      setError("Укажите дату ближайшей оплаты");
+      return;
+    }
+  
     setLoading(true);
+  
     try {
       if (mode === "create") {
-        await createRecurringPayment({
-          name: form.name,
-          amount: parseFloat(form.amount),
+        const payload: RecurringPaymentCreate = {
+          name: form.name.trim(),
+          amount,
           currency: form.currency,
           next_due_date: form.next_due_date,
           periodicity: "monthly",
-          description: form.description || null,
-        });
+          description: form.description.trim() || null,
+        };
+  
+        await createRecurringPayment(payload);
       }
+  
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Ошибка сохранения");
+    } catch (err: unknown) {
+      if (isAxiosError<{ detail?: string }>(err)) {
+        const detail = err.response?.data?.detail;
+  
+        setError(
+          typeof detail === "string"
+            ? detail
+            : "Ошибка сохранения"
+        );
+      } else {
+        setError("Ошибка сохранения");
+      }
     } finally {
       setLoading(false);
     }

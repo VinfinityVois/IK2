@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://127.0.0.1:8000/api/v1";
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -8,6 +11,7 @@ export const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
 
 // Добавляем токен к каждому запросу
 api.interceptors.request.use((config) => {

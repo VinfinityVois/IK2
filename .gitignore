@@ -1,1 +1,35 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.backup_*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next.js
 node_modules/
+.next/
+.next-*
+out/
+build/
+dist/
+coverage/
+
+# Local IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

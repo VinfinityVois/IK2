@@ -8,6 +8,7 @@ import { register as apiRegister } from "@/lib/api";
 import { TopographyBackground } from "@/components/ui/topography-bg";
 import { FlipWords } from "@/components/ui/flip-words";
 import { cn } from "@/lib/utils";
+import { isAxiosError } from "axios";
 
 const words = ["платежи", "аренду", "подписки", "серверы"];
 
@@ -35,15 +36,16 @@ export default function LoginPage() {
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
       router.push("/dashboard");
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      const detail = isAxiosError<{ detail?: string }>(err)
+        ? err.response?.data?.detail
+        : undefined;
+    
       fail(
         detail === "User is inactive"
           ? "Аккаунт отключён"
           : "Неверный логин или пароль"
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -55,14 +57,19 @@ export default function LoginPage() {
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
       router.push("/dashboard");
-    } catch (err: any) {
-      const d = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      const detail = isAxiosError<{
+        detail?: string | Array<{ msg?: string }>;
+      }>(err)
+        ? err.response?.data?.detail
+        : undefined;
+    
       fail(
-        typeof d === "string"
-          ? d
-          : Array.isArray(d)
-          ? d.map((x: any) => x.msg).join(", ")
-          : "Ошибка регистрации"
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((item) => item.msg || "Ошибка проверки данных").join(", ")
+            : "Ошибка регистрации"
       );
     } finally {
       setLoading(false);

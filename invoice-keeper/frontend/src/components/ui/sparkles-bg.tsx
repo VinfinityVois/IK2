@@ -23,7 +23,7 @@ export function SparklesBackground({ className }: { className?: string }) {
 
     let animId: number;
     let particles: Particle[] = [];
-    let mouse = { x: -1000, y: -1000 };
+    const mouse = { x: -1000, y: -1000 };
 
     const resize = () => {
       canvas.width = window.innerWidth;

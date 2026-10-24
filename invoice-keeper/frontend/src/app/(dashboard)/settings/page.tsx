@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { isAxiosError } from "axios";
 
 export default function SettingsPage() {
   const { fetchMe } = useAuthStore();
@@ -36,7 +37,14 @@ export default function SettingsPage() {
     setMsg("");
     setLoading(true);
     try {
-      const payload: any = {
+      const payload: {
+        full_name: string;
+        phone: string;
+        locale: string;
+        email?: string;
+        current_password?: string;
+        new_password?: string;
+      } = {
         full_name: form.full_name,
         phone: form.phone,
         locale: form.locale,
@@ -52,10 +60,12 @@ export default function SettingsPage() {
       setMsg("Сохранено");
       setForm((f) => ({ ...f, current_password: "", new_password: "" }));
       fetchMe();
-    } catch (ex: any) {
-      setErr(ex?.response?.data?.detail || "Ошибка сохранения");
-    } finally {
-      setLoading(false);
+    } catch (ex: unknown) {
+      const detail = isAxiosError<{ detail?: string }>(ex)
+        ? ex.response?.data?.detail
+        : undefined;
+    
+      setErr(detail || "Ошибка сохранения");
     }
   };
 

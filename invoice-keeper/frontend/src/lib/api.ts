@@ -64,7 +64,18 @@ export async function getRecurringPayments() {
   return data;
 }
 
-export async function createRecurringPayment(payload: any) {
+export interface RecurringPaymentCreate {
+  name: string;
+  amount: number;
+  currency: "RUB" | "USD" | "EUR";
+  next_due_date: string;
+  periodicity: "monthly";
+  description: string | null;
+}
+
+export async function createRecurringPayment(
+  payload: RecurringPaymentCreate
+) {
   const { data } = await api.post("/recurring-payments", payload);
   return data;
 }

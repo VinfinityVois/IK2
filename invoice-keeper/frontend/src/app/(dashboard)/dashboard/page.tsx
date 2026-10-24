@@ -1,15 +1,18 @@
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/auth";
+
 import {
   getPaymentOccurrences,
   updatePaymentOccurrence,
   deleteRecurringPayment,
   api,
 } from "@/lib/api";
+
 import { AddPaymentModal } from "@/components/dashboard/add-payment-modal";
 import { PaymentTimeline } from "@/components/dashboard/payment-timeline";
 import { WelcomeBanner } from "@/components/dashboard/welcome-banner";
@@ -36,116 +39,225 @@ const CURRENCY_STYLE: Record<string, string> = {
 export default function DashboardPage() {
   const router = useRouter();
   const { user, token, fetchMe } = useAuthStore();
+
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "unpaid" | "overdue" | "paid">("all");
-  const [currency, setCurrency] = useState<"all" | "RUB" | "USD" | "EUR">("all");
+
+  const [filter, setFilter] = useState<
+    "all" | "unpaid" | "overdue" | "paid"
+  >("all");
+
+  const [currency, setCurrency] = useState<
+    "all" | "RUB" | "USD" | "EUR"
+  >("all");
+
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "timeline">("list");
   const [modalOpen, setModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
-    if (!token && !localStorage.getItem("access_token")) {
-      router.push("/login");
-      return;
-    }
-    fetchMe().then(() => loadData());
-  }, []);
-
-  const loadData = async () => {
+  // Загрузка платежей.
+  // Функция объявлена до useEffect, который её вызывает.
+  const loadData = useCallback(async () => {
     setLoading(true);
+
     try {
       const occData = await getPaymentOccurrences();
       setOccurrences(occData.items || []);
-    } catch (e) {
-      console.error(e);
+    } catch (error: unknown) {
+      console.error("Не удалось загрузить платежи:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const showSuccess = (msg: string) => {
+  // Проверка авторизации и первоначальная загрузка.
+  useEffect(() => {
+    if (!token && !localStorage.getItem("access_token")) {
+      router.replace("/login");
+      return;
+    }
+
+    let cancelled = false;
+
+    const initialize = async () => {
+      try {
+        await fetchMe();
+
+        if (!cancelled) {
+          await loadData();
+        }
+      } catch (error: unknown) {
+        console.error("Не удалось проверить авторизацию:", error);
+
+        if (!cancelled) {
+          router.replace("/login");
+        }
+      }
+    };
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, fetchMe, router, loadData]);
+
+  // Проверка роли пользователя.
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
+
+  // Уведомление об успешном действии.
+  const showSuccess = useCallback((msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(""), 2500);
-  };
+  }, []);
 
+  // Изменение статуса оплаты.
   const handleTogglePaid = async (item: Occurrence) => {
     try {
       await updatePaymentOccurrence(item.id, {
         is_paid: !item.is_paid,
-        paid_at: !item.is_paid ? new Date().toISOString().slice(0, 10) : null,
+        paid_at: !item.is_paid
+          ? new Date().toISOString().slice(0, 10)
+          : null,
       });
-      showSuccess(item.is_paid ? "Оплата отменена" : "Оплачено · следующий период создан");
+
+      showSuccess(
+        item.is_paid
+          ? "Оплата отменена"
+          : "Оплачено · следующий период создан"
+      );
+
       await loadData();
-    } catch (e) {
-      console.error(e);
+    } catch (error: unknown) {
+      console.error("Не удалось изменить статус оплаты:", error);
     }
   };
 
+  // Деактивация регулярного платежа.
   const handleDelete = async (item: Occurrence) => {
-    if (!confirm(`Деактивировать «${item.name}»?`)) return;
+    if (!confirm(`Деактивировать «${item.name || "Без названия"}»?`)) {
+      return;
+    }
+
     try {
       await deleteRecurringPayment(item.recurring_payment_id);
+
       showSuccess("Деактивировано");
       await loadData();
-    } catch (e) {
-      console.error(e);
+
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    } catch (error: unknown) {
+      console.error("Не удалось деактивировать платёж:", error);
     }
   };
 
+  // Массовая деактивация.
   const bulkDeactivate = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Деактивировать ${selected.size} записей?`)) return;
+
+    if (!confirm(`Деактивировать ${selected.size} записей?`)) {
+      return;
+    }
+
     const ids = Array.from(
       new Set(
         occurrences
-          .filter((o) => selected.has(o.id))
-          .map((o) => o.recurring_payment_id)
+          .filter((item) => selected.has(item.id))
+          .map((item) => item.recurring_payment_id)
       )
     );
+
+    if (ids.length === 0) {
+      setSelected(new Set());
+      return;
+    }
+
     try {
       await api.post("/recurring-payments/bulk-deactivate", { ids });
+
       setSelected(new Set());
       showSuccess(`Деактивировано: ${ids.length}`);
+
       await loadData();
-    } catch (e) {
-      console.error(e);
+    } catch (error: unknown) {
+      console.error("Не удалось выполнить массовую деактивацию:", error);
     }
   };
 
+  // Поиск и фильтрация.
   const filtered = useMemo(() => {
-    return occurrences.filter((o) => {
-      if (filter === "paid" && !o.is_paid) return false;
-      if (filter === "unpaid" && o.is_paid) return false;
-      if (filter === "overdue" && !o.is_overdue) return false;
-      if (currency !== "all" && o.currency !== currency) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const hay = `${o.name || ""} ${o.currency || ""} ${o.due_date}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+    return occurrences.filter((item) => {
+      if (filter === "paid" && !item.is_paid) return false;
+      if (filter === "unpaid" && item.is_paid) return false;
+      if (filter === "overdue" && !item.is_overdue) return false;
+
+      if (currency !== "all" && item.currency !== currency) {
+        return false;
       }
+
+      if (search.trim()) {
+        const query = search.trim().toLowerCase();
+
+        const haystack = [
+          item.name || "",
+          item.currency || "",
+          item.due_date || "",
+          item.amount ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(query)) return false;
+      }
+
       return true;
     });
   }, [occurrences, filter, currency, search]);
 
-  const formatMoney = (amount: number | string | null, cur: string | null) => {
+  // Форматирование суммы.
+  const formatMoney = (
+    amount: number | string | null,
+    cur: string | null
+  ) => {
     if (amount == null) return "—";
-    const num = typeof amount === "string" ? parseFloat(amount) : amount;
+
+    const num = typeof amount === "string" ? Number(amount) : amount;
+
+    if (!Number.isFinite(num)) return "—";
+
+    const supportedCurrencies = ["RUB", "USD", "EUR"];
+    const safeCurrency =
+      cur && supportedCurrencies.includes(cur) ? cur : "RUB";
+
     return new Intl.NumberFormat("ru-RU", {
       style: "currency",
-      currency: cur || "RUB",
+      currency: safeCurrency,
       maximumFractionDigits: 0,
     }).format(num);
   };
 
+  // Выбор записи для массовой операции.
   const toggleSelect = (id: number) => {
     setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
+      const next = new Set(prev);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return next;
     });
   };
 
@@ -154,7 +266,10 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#050505]/90 backdrop-blur-xl">
         <div className="w-full px-6 lg:px-10 h-14 flex items-center gap-4">
           <div className="shrink-0">
-            <h1 className="text-sm font-semibold text-white">Платежи</h1>
+            <h1 className="text-sm font-semibold text-white">
+              Платежи
+            </h1>
+
             <p className="text-[10px] text-neutral-500 hidden sm:block">
               Обязательства · сроки · оплата
             </p>
@@ -163,10 +278,12 @@ export default function DashboardPage() {
           <div className="flex-1 max-w-xl relative">
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Поиск по названию, валюте, дате..."
+              aria-label="Поиск платежей"
               className="w-full h-9 pl-9 pr-3 rounded-xl bg-[#111] border border-white/10 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500/40"
             />
+
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600 text-sm">
               ⌕
             </span>
@@ -175,26 +292,30 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 ml-auto">
             {selected.size > 0 && (
               <button
-                onClick={bulkDeactivate}
+                onClick={() => void bulkDeactivate()}
                 className="h-9 px-3 rounded-lg border border-red-500/30 text-red-400 text-xs hover:bg-red-500/10"
               >
                 Удалить ({selected.size})
               </button>
             )}
+
             <div className="flex rounded-lg border border-white/10 p-0.5">
-              {(["list", "timeline"] as const).map((v) => (
+              {(["list", "timeline"] as const).map((value) => (
                 <button
-                  key={v}
-                  onClick={() => setView(v)}
+                  key={value}
+                  onClick={() => setView(value)}
                   className={cn(
                     "px-2.5 py-1 rounded-md text-xs transition-all",
-                    view === v ? "bg-white text-black" : "text-neutral-500 hover:text-white"
+                    view === value
+                      ? "bg-white text-black"
+                      : "text-neutral-500 hover:text-white"
                   )}
                 >
-                  {v === "list" ? "Список" : "Timeline"}
+                  {value === "list" ? "Список" : "Timeline"}
                 </button>
               ))}
             </div>
+
             <button
               onClick={() => setModalOpen(true)}
               className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white"
@@ -206,7 +327,10 @@ export default function DashboardPage() {
       </header>
 
       <div className="w-full px-6 lg:px-10 py-6">
-        <WelcomeBanner username={user?.username} role={user?.role} />
+        <WelcomeBanner
+          username={user?.username}
+          role={user?.role}
+        />
 
         {successMsg && (
           <motion.div
@@ -218,11 +342,12 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Filters full width */}
+        {/* Фильтры */}
         <div className="flex flex-wrap items-center gap-2 mb-6">
           <span className="text-[11px] text-neutral-600 uppercase tracking-wider mr-1">
             Статус
           </span>
+
           {(
             [
               ["all", "Все"],
@@ -244,24 +369,28 @@ export default function DashboardPage() {
               {label}
             </button>
           ))}
+
           <span className="w-px h-4 bg-white/10 mx-2" />
+
           <span className="text-[11px] text-neutral-600 uppercase tracking-wider mr-1">
             Валюта
           </span>
-          {(["all", "RUB", "USD", "EUR"] as const).map((c) => (
+
+          {(["all", "RUB", "USD", "EUR"] as const).map((value) => (
             <button
-              key={c}
-              onClick={() => setCurrency(c)}
+              key={value}
+              onClick={() => setCurrency(value)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                currency === c
+                currency === value
                   ? "bg-white text-black"
                   : "text-neutral-500 border border-white/10 hover:border-white/20 hover:text-white"
               )}
             >
-              {c === "all" ? "Все" : c}
+              {value === "all" ? "Все" : value}
             </button>
           ))}
+
           <span className="ml-auto text-xs text-neutral-600">
             {filtered.length} из {occurrences.length}
           </span>
@@ -276,15 +405,20 @@ export default function DashboardPage() {
             Ничего не найдено
           </div>
         ) : view === "timeline" ? (
-          <PaymentTimeline items={filtered} onTogglePaid={handleTogglePaid} />
+          <PaymentTimeline
+            items={filtered}
+            onTogglePaid={handleTogglePaid}
+          />
         ) : (
           <div className="space-y-2 w-full">
-            {filtered.map((item, i) => (
+            {filtered.map((item, index) => (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(i * 0.02, 0.25) }}
+                transition={{
+                  delay: Math.min(index * 0.02, 0.25),
+                }}
                 className={cn(
                   "group flex items-center gap-3 sm:gap-4 px-4 py-3.5 rounded-xl border bg-[#0c0c0c] transition-colors w-full",
                   item.is_overdue && !item.is_paid
@@ -296,13 +430,15 @@ export default function DashboardPage() {
                   type="checkbox"
                   checked={selected.has(item.id)}
                   onChange={() => toggleSelect(item.id)}
+                  aria-label={`Выбрать платёж ${item.name || item.id}`}
                   className="rounded border-white/20 bg-transparent accent-blue-500"
                 />
 
                 <span
                   className={cn(
                     "text-[10px] font-bold px-2.5 py-1 rounded-lg border shrink-0 min-w-[3rem] text-center",
-                    CURRENCY_STYLE[item.currency || "RUB"] || CURRENCY_STYLE.RUB
+                    CURRENCY_STYLE[item.currency || "RUB"] ||
+                      CURRENCY_STYLE.RUB
                   )}
                 >
                   {item.currency || "—"}
@@ -313,17 +449,20 @@ export default function DashboardPage() {
                     <span className="font-medium text-sm text-white truncate">
                       {item.name || "Без названия"}
                     </span>
+
                     {item.is_paid && (
                       <span className="text-[10px] text-green-400 border border-green-500/25 bg-green-500/10 px-1.5 py-0.5 rounded">
                         Оплачено
                       </span>
                     )}
+
                     {item.is_overdue && !item.is_paid && (
                       <span className="text-[10px] text-red-400 border border-red-500/25 bg-red-500/10 px-1.5 py-0.5 rounded">
                         Просрочено
                       </span>
                     )}
                   </div>
+
                   <div className="text-xs text-neutral-500 mt-0.5">
                     Срок: {item.due_date}
                     {item.paid_at && ` · Факт: ${item.paid_at}`}
@@ -336,7 +475,7 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={() => handleTogglePaid(item)}
+                    onClick={() => void handleTogglePaid(item)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                       item.is_paid
@@ -346,8 +485,9 @@ export default function DashboardPage() {
                   >
                     {item.is_paid ? "Отменить" : "Оплачено"}
                   </button>
+
                   <button
-                    onClick={() => handleDelete(item)}
+                    onClick={() => void handleDelete(item)}
                     className="opacity-0 group-hover:opacity-100 px-2 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-red-400 transition-all"
                   >
                     Удалить
@@ -363,7 +503,7 @@ export default function DashboardPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSuccess={() => {
-          loadData();
+          void loadData();
           showSuccess("Платёж создан");
         }}
       />

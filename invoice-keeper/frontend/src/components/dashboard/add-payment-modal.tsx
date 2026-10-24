@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createRecurringPayment } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { DateSelect } from "@/components/ui/date-select";
+import { isAxiosError } from "axios";
+import type { RecurringPaymentCreate } from "@/lib/api";
 
 interface Props {
   open: boolean;

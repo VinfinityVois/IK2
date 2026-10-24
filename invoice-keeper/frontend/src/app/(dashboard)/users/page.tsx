@@ -1,8 +1,10 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { isAxiosError } from "axios";
 import { useAuthStore } from "@/store/auth";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -18,6 +20,7 @@ interface UserItem {
 export default function UsersPage() {
   const router = useRouter();
   const { user, token, fetchMe } = useAuthStore();
+
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
@@ -25,56 +28,96 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  useEffect(() => {
-    if (!token && !localStorage.getItem("access_token")) {
-      router.push("/login");
-      return;
-    }
-    fetchMe().then((u) => {
-      loadUsers();
-    });
-  }, []);
-
-  useEffect(() => {
-    if (user && user.role !== "admin") router.push("/dashboard");
-  }, [user]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
+
     try {
-      const { data } = await api.get("/users");
+      const { data } = await api.get<UserItem[]>("/users");
       setUsers(data);
-    } catch (e) {
-      console.error(e);
+    } catch (err: unknown) {
+      console.error("Ошибка загрузки пользователей:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const createUser = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!token && !localStorage.getItem("access_token")) {
+      router.replace("/login");
+      return;
+    }
+
+    let cancelled = false;
+
+    const initialize = async () => {
+      try {
+        await fetchMe();
+
+        if (!cancelled) {
+          await loadUsers();
+        }
+      } catch (err: unknown) {
+        console.error("Ошибка проверки авторизации:", err);
+
+        if (!cancelled) {
+          router.replace("/login");
+        }
+      }
+    };
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, fetchMe, router, loadUsers]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.replace("/dashboard");
+    }
+  }, [user, router]);
+
+  const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+
     try {
       await api.post("/users", form);
+
       setForm({ username: "", password: "" });
       setModal(false);
       setOk("Пользователь создан");
       setTimeout(() => setOk(""), 2500);
-      loadUsers();
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Ошибка создания");
+
+      await loadUsers();
+    } catch (err: unknown) {
+      if (isAxiosError<{ detail?: string }>(err)) {
+        setError(err.response?.data?.detail || "Ошибка создания");
+      } else {
+        setError("Ошибка создания");
+      }
     }
   };
 
   const deleteUser = async (id: number) => {
     if (!confirm("Удалить пользователя?")) return;
+
     try {
       await api.delete(`/users/${id}`);
+
       setOk("Удалён");
       setTimeout(() => setOk(""), 2000);
-      loadUsers();
-    } catch (e) {
-      console.error(e);
+
+      await loadUsers();
+    } catch (err: unknown) {
+      console.error("Ошибка удаления пользователя:", err);
+
+      if (isAxiosError<{ detail?: string }>(err)) {
+        setError(err.response?.data?.detail || "Ошибка удаления пользователя");
+      } else {
+        setError("Ошибка удаления пользователя");
+      }
     }
   };
 
@@ -87,7 +130,10 @@ export default function UsersPage() {
         <div className="px-6 h-14 flex items-center justify-between">
           <h1 className="text-sm font-medium">Пользователи</h1>
           <button
-            onClick={() => setModal(true)}
+            onClick={() => {
+              setError("");
+              setModal(true);
+            }}
             className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white"
           >
             + Пользователь
@@ -99,6 +145,12 @@ export default function UsersPage() {
         {ok && (
           <div className="mb-4 px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/25 text-green-400 text-sm">
             {ok}
+          </div>
+        )}
+
+        {error && !modal && (
+          <div className="mb-4 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
+            {error}
           </div>
         )}
 
@@ -117,14 +169,16 @@ export default function UsersPage() {
                 className="flex items-center gap-4 px-4 py-3 rounded-lg border border-white/[0.06] bg-[#0c0c0c] hover:border-white/10 transition-colors"
               >
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold">
-                  {u.username[0].toUpperCase()}
+                  {(u.username || "?")[0].toUpperCase()}
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{u.username}</div>
                   <div className="text-xs text-neutral-500">
                     {new Date(u.created_at).toLocaleDateString("ru-RU")}
                   </div>
                 </div>
+
                 <span
                   className={cn(
                     "text-[10px] uppercase px-2 py-0.5 rounded border",
@@ -135,14 +189,16 @@ export default function UsersPage() {
                 >
                   {u.is_active ? "active" : "off"}
                 </span>
+
                 <button
-                  onClick={() => deleteUser(u.id)}
+                  onClick={() => void deleteUser(u.id)}
                   className="text-xs text-neutral-500 hover:text-red-400 transition-colors"
                 >
                   Удалить
                 </button>
               </motion.div>
             ))}
+
             {users.length === 0 && (
               <div className="text-center text-neutral-600 py-16 text-sm">
                 Нет пользователей
@@ -162,6 +218,7 @@ export default function UsersPage() {
               onClick={() => setModal(false)}
               className="absolute inset-0 bg-black/75"
             />
+
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -173,11 +230,16 @@ export default function UsersPage() {
                 <button
                   onClick={() => setModal(false)}
                   className="text-neutral-500 hover:text-white text-xl"
+                  aria-label="Закрыть"
                 >
                   ×
                 </button>
               </div>
-              <form onSubmit={createUser} className="p-6 space-y-4">
+
+              <form
+                onSubmit={createUser}
+                className="p-6 space-y-4"
+              >
                 <div>
                   <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
                     Логин
@@ -186,11 +248,14 @@ export default function UsersPage() {
                     required
                     minLength={3}
                     value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, username: e.target.value })
+                    }
                     className={field}
                     placeholder="user1"
                   />
                 </div>
+
                 <div>
                   <label className="block text-[11px] text-neutral-500 uppercase tracking-wider mb-1.5">
                     Пароль
@@ -200,24 +265,32 @@ export default function UsersPage() {
                     minLength={6}
                     type="password"
                     value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, password: e.target.value })
+                    }
                     className={field}
                     placeholder="••••••••"
                   />
                 </div>
+
                 {error && (
                   <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                     {error}
                   </div>
                 )}
+
                 <div className="flex gap-3 pt-1">
                   <button
                     type="button"
-                    onClick={() => setModal(false)}
+                    onClick={() => {
+                      setModal(false);
+                      setError("");
+                    }}
                     className="flex-1 py-2.5 rounded-lg border border-white/10 text-neutral-400 text-sm"
                   >
                     Отмена
                   </button>
+
                   <button
                     type="submit"
                     className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"

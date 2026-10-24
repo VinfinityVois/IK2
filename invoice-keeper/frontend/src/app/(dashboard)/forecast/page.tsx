@@ -1,42 +1,12 @@
 "use client";
-
-export default function ForecastPage() {
-  return (
-    <div className="w-full px-6 lg:px-10 py-8">
-      <div className="mb-8">
-        <div className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">
-          AI Forecast · демо
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Прогноз и оптимизация кассовых разрывов
-        </h1>
-        <p className="text-sm text-neutral-500 mt-1">
-          Моделирование остатков и рекомендации по сдвигу дат платежей
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        {[
-          ["Риск разрыва", "0.00%", "text-green-400"],
-          ["Cash flow 30д", "+ —", "text-blue-400"],
-          ["Резерв налоги", "—", ""],
-          ["Smart Shift", "3 совета", "text-violet-400"],
-        ].map(([l, v, c]) => (
-          <div key={l as string} className="rounded-xl border border-white/[0.06] bg-[#0c0c0c] p-4">
-            <div className="text-[10px] uppercase text-neutral-500">{l as string}</div>
-            <div className={`text-xl font-semibold mt-1 ${c}`}>{v as string}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-xl border border-white/[0.06] bg-[#0c0c0c] p-6 mb-6 h-56 flex items-center justify-center text-neutral-600 text-sm">
-        График динамики остатков · строится по payment-occurrences + summary API
-      </div>
-
-      <div className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-neutral-500">
-        Рекомендации AI по сдвигу дат — зачинка. На защите можно показать ручной сценарий
-        оптимизации на основе просроченных и ближайших сроков.
-      </div>
-    </div>
-  );
-}
+import {useEffect,useMemo,useState} from "react";
+import {getPaymentOccurrences} from "@/lib/api";
+type O={id:number;name?:string|null;amount?:number|string|null;currency?:string|null;due_date:string;is_paid:boolean;is_overdue:boolean};
+const fmt=(n:number,c="RUB")=>new Intl.NumberFormat("ru-RU",{style:"currency",currency:c,maximumFractionDigits:0}).format(n);
+export default function ForecastPage(){const [items,setItems]=useState<O[]>([]);const [loading,setLoading]=useState(true);const [days,setDays]=useState<7|30|90>(30);
+useEffect(()=>{getPaymentOccurrences().then(d=>setItems(d.items||[])).catch(console.error).finally(()=>setLoading(false));},[]);
+const f=useMemo(()=>{const start=new Date();start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days);const upcoming=items.filter(x=>!x.is_paid&&new Date(`${x.due_date.slice(0,10)}T12:00:00`)>=start&&new Date(`${x.due_date.slice(0,10)}T12:00:00`)<end);const currencies=upcoming.reduce<Record<string,number>>((a,x)=>{const c=x.currency||"RUB";a[c]=(a[c]||0)+Number(x.amount||0);return a;},{});const overdue=items.filter(x=>!x.is_paid&&x.is_overdue);const n=days===7?7:days===30?6:9,step=days/n,bars=Array.from({length:n},(_,i)=>({label:"",amount:0,count:0}));upcoming.forEach(x=>{const d=new Date(`${x.due_date.slice(0,10)}T12:00:00`),offset=Math.max(0,Math.floor((d.getTime()-start.getTime())/86400000)),idx=Math.min(n-1,Math.floor(offset/step));bars[idx].amount+=Number(x.amount||0);bars[idx].count++;});bars.forEach((b,i)=>{const d=new Date(start);d.setDate(d.getDate()+Math.floor(i*step));b.label=new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short"}).format(d);});return {upcoming,currencies,overdue,bars};},[items,days]);const max=Math.max(...f.bars.map(x=>x.amount),1);
+return <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-[11px] uppercase tracking-[.18em] text-violet-300">Forecast · расчёт по платежам</p><h1 className="text-3xl font-semibold tracking-tight text-white">Прогноз обязательств</h1><p className="mt-2 max-w-2xl text-sm text-neutral-400">Расчёт будущих выплат по суммам и срокам из базы. Это не прогноз банковского остатка и не AI-рекомендация.</p></div><div className="flex rounded-xl border border-white/10 bg-[#101012] p-1">{([7,30,90] as const).map(n=><button key={n} onClick={()=>setDays(n)} className={`rounded-lg px-3 py-2 text-xs ${days===n?"bg-rose-500 text-white":"text-neutral-400 hover:text-white"}`}>{n} дней</button>)}</div></header>
+<section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><article className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 to-[#101012] p-5"><p className="text-xs text-neutral-400">Платежей в горизонте</p><p className="mt-3 text-2xl font-semibold text-white">{loading?"…":f.upcoming.length}</p><p className="mt-2 text-[11px] text-neutral-500">Неоплаченные записи</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">Просроченные</p><p className="mt-3 text-2xl font-semibold text-rose-300">{loading?"…":f.overdue.length}</p><p className="mt-2 text-[11px] text-neutral-500">Помечены в БД</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">Валюты</p><p className="mt-3 text-2xl font-semibold text-white">{loading?"…":Object.keys(f.currencies).length}</p><p className="mt-2 text-[11px] text-neutral-500">Без взаимной конвертации</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">Метод</p><p className="mt-3 text-xl font-semibold text-violet-200">Сроки + суммы</p><p className="mt-2 text-[11px] text-neutral-500">Прозрачный расчёт</p></article></section>
+<section className="mt-6 rounded-2xl border border-white/[.07] bg-[#101012] p-5 sm:p-6"><div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-white">Распределение выплат</h2><p className="mt-1 text-xs text-neutral-500">Группировка по периодам, на основе текущих платежей</p></div><span className="text-xs text-neutral-500">{days} дней</span></div>{loading?<div className="flex h-52 items-center justify-center text-sm text-neutral-500">Загрузка…</div>:f.upcoming.length===0?<div className="mt-5 flex h-44 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 text-center"><p className="text-sm text-neutral-300">Нет платежей на выбранный период</p><p className="mt-1 text-xs text-neutral-500">График появится автоматически после создания платежей.</p></div>:<div className="mt-6 flex h-52 items-end gap-2 sm:gap-4">{f.bars.map((b,i)=><div key={b.label+i} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"><div className="flex w-full flex-1 items-end"><div title={`${b.label}: ${b.amount}`} className="w-full rounded-t-lg bg-gradient-to-t from-rose-600 to-rose-300 transition-all duration-500 hover:brightness-110" style={{height:`${b.amount?Math.max(8,b.amount/max*100):0}%`}}/></div><span className="truncate text-[9px] text-neutral-500 sm:text-[11px]">{b.label}</span><span className="text-[9px] text-neutral-600">{b.count||""}</span></div>)}</div>}<div className="mt-4 text-[11px] text-neutral-500">Столбцы — сумма обязательств в периоде; число под датой — количество платежей.</div></section>
+<section className="mt-6 grid gap-5 xl:grid-cols-2"><div className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><h2 className="font-semibold text-white">Суммы по валютам</h2><p className="mt-1 text-xs text-neutral-500">Валюты не складываются в единый итог.</p>{Object.keys(f.currencies).length===0?<p className="mt-5 text-sm text-neutral-500">Нет данных для отображения.</p>:<div className="mt-4 space-y-3">{Object.entries(f.currencies).map(([c,n])=><div key={c} className="flex justify-between rounded-xl border border-white/[.05] bg-black/20 px-4 py-3"><span className="text-sm text-neutral-300">{c}</span><span className="text-sm font-semibold text-white">{fmt(n,c)}</span></div>)}</div>}</div><div className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><h2 className="font-semibold text-white">Интерпретация</h2><div className="mt-4 space-y-3">{f.overdue.length?<div className="rounded-xl border border-rose-400/15 bg-rose-500/[.06] p-4"><p className="text-sm font-medium text-rose-200">Нужна проверка просрочек</p><p className="mt-1 text-xs leading-5 text-neutral-400">{f.overdue.length} платежей отмечены просроченными. Проверьте сроки и статус.</p></div>:<div className="rounded-xl border border-emerald-400/15 bg-emerald-500/[.05] p-4"><p className="text-sm font-medium text-emerald-200">Нет помеченных просрочек</p><p className="mt-1 text-xs text-neutral-400">Без банковских остатков нельзя подтвердить отсутствие кассового разрыва.</p></div>}<div className="rounded-xl border border-white/[.06] bg-black/20 p-4"><p className="text-sm font-medium text-neutral-200">Следующая итерация</p><p className="mt-1 text-xs leading-5 text-neutral-500">После интеграции банков добавятся прогноз остатков, сценарии движения денег и рекомендации на основе проверенных данных.</p></div></div></div></section></main>}

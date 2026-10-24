@@ -1,65 +1,14 @@
 "use client";
-
-const banks = [
-  { name: "T-Банк (Бизнес)", bal: "184 250 400 ₽", tag: "Live", color: "from-yellow-500/20" },
-  { name: "Альфа-Банк Корп.", bal: "136 101 580 ₽", tag: "Активен", color: "from-red-500/20" },
-  { name: "Raiffeisen Int.", bal: "213 212 €", tag: "SEPA", color: "from-yellow-600/20" },
-  { name: "Bank of Georgia", bal: "48 500 $", tag: "Резерв", color: "from-orange-500/20" },
-];
-
-export default function BanksPage() {
-  return (
-    <div className="w-full px-6 lg:px-10 py-8">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-blue-400 mb-1">
-            Open Banking · демо
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Банки и счета</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Привязанные счета, остатки и распределение ликвидности
-          </p>
-        </div>
-        <button className="h-9 px-4 rounded-xl bg-blue-600 text-sm font-medium text-white">
-          + Подключить банк
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        {[
-          ["Консолидированный", "344 872 980 ₽"],
-          ["Зарезервировано", "54 200 000 ₽"],
-          ["Валютный резерв", "261 712 $"],
-          ["Запланировано", "18 счетов"],
-        ].map(([l, v]) => (
-          <div key={l} className="rounded-xl border border-white/[0.06] bg-[#0c0c0c] p-4">
-            <div className="text-[10px] uppercase text-neutral-500 mb-1">{l}</div>
-            <div className="text-lg font-semibold tabular-nums">{v}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        {banks.map((b) => (
-          <div
-            key={b.name}
-            className={`rounded-xl border border-white/[0.06] bg-gradient-to-br ${b.color} to-transparent p-5`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="text-sm font-medium">{b.name}</div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-neutral-300">
-                {b.tag}
-              </span>
-            </div>
-            <div className="text-[10px] text-neutral-500 uppercase mb-1">Доступный остаток</div>
-            <div className="text-xl font-semibold tabular-nums">{b.bal}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-neutral-600">
-        Зачинка Open Banking API · реальные интеграции — на защите / следующей итерации
-      </div>
-    </div>
-  );
-}
+import { useEffect,useMemo,useState } from "react";
+import { getPaymentOccurrences } from "@/lib/api";
+type O={id:number;name?:string|null;amount?:number|string|null;currency?:string|null;due_date:string;is_paid:boolean;is_overdue:boolean};
+const accounts=[{name:"Т-Банк · Бизнес",type:"Расчётный счёт",cur:"RUB",amount:1842500,mark:"Т",tint:"from-amber-500/20"},{name:"Альфа-Банк",type:"Операционный счёт",cur:"RUB",amount:1361580,mark:"А",tint:"from-rose-500/20"},{name:"Резервный счёт",type:"Накопительный",cur:"RUB",amount:485000,mark:"R",tint:"from-sky-500/20"},{name:"Валютный счёт",type:"Демо-счёт",cur:"USD",amount:48500,mark:"$",tint:"from-violet-500/20"}];
+const fmt=(n:number,c="RUB")=>new Intl.NumberFormat("ru-RU",{style:"currency",currency:c,maximumFractionDigits:0}).format(n);
+export default function BanksPage(){const [items,setItems]=useState<O[]>([]);const [loading,setLoading]=useState(true);const [notice,setNotice]=useState(false);
+useEffect(()=>{getPaymentOccurrences().then(d=>setItems(d.items||[])).catch(console.error).finally(()=>setLoading(false));},[]);
+const s=useMemo(()=>({unpaid:items.filter(x=>!x.is_paid).length,late:items.filter(x=>!x.is_paid&&x.is_overdue).length}),[items]);
+return <main className="min-h-screen px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-[11px] uppercase tracking-[.18em] text-rose-300">Финансовый контур · демо</p><h1 className="text-3xl font-semibold tracking-tight text-white">Банки и счета</h1><p className="mt-2 max-w-2xl text-sm text-neutral-400">Макет единой панели счетов. Остатки банков ниже — временные демонстрационные данные, не полученные из банковских API.</p></div><button onClick={()=>setNotice(true)} className="h-10 rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-400">+ Подключить банк</button></header>
+{notice&&<div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-rose-400/20 bg-rose-500/[.07] p-4"><div><p className="text-sm font-medium text-white">Open Banking ещё не подключён</p><p className="mt-1 text-xs text-neutral-400">Реальные интеграции запланированы на следующую итерацию.</p></div><button onClick={()=>setNotice(false)} className="text-xs text-neutral-300">Закрыть</button></div>}
+<section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><article className="rounded-2xl border border-rose-400/20 bg-gradient-to-br from-rose-500/15 to-[#101012] p-5"><p className="text-xs text-neutral-400">Демо-остаток в рублях</p><p className="mt-3 text-2xl font-semibold text-white">{fmt(accounts.filter(a=>a.cur==="RUB").reduce((n,a)=>n+a.amount,0))}</p><p className="mt-2 text-[11px] text-rose-200">Не банковские данные</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">К оплате по БД</p><p className="mt-3 text-2xl font-semibold text-white">{loading?"…":s.unpaid}</p><p className="mt-2 text-[11px] text-neutral-500">Неоплаченные обязательства</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">Просрочено по БД</p><p className="mt-3 text-2xl font-semibold text-rose-300">{loading?"…":s.late}</p><p className="mt-2 text-[11px] text-neutral-500">Записи payment-occurrences</p></article><article className="rounded-2xl border border-white/[.07] bg-[#101012] p-5"><p className="text-xs text-neutral-400">Статус интеграции</p><p className="mt-3 text-xl font-semibold text-amber-200">Демо-режим</p><p className="mt-2 text-[11px] text-neutral-500">Open Banking — позже</p></article></section>
+<section className="mt-8"><div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold text-white">Счета организации</h2><p className="mt-1 text-xs text-neutral-500">Временные карточки для демонстрации интерфейса</p></div><span className="rounded-full border border-amber-300/20 bg-amber-300/[.07] px-3 py-1 text-[10px] uppercase tracking-wider text-amber-200">Demo mode</span></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{accounts.map((a,i)=><article key={a.name} className={`rounded-2xl border border-white/[.08] bg-gradient-to-br ${a.tint} to-[#101012] p-5 transition duration-300 hover:-translate-y-1 hover:border-white/20`}><div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-lg font-bold text-white">{a.mark}</div><span className="rounded-full bg-amber-300/[.08] px-2.5 py-1 text-[10px] text-amber-200">Демо</span></div><p className="mt-5 text-sm font-semibold text-white">{a.name}</p><p className="mt-1 text-xs text-neutral-400">{a.type}</p><p className="mt-5 text-[10px] uppercase tracking-widest text-neutral-500">Пример остатка</p><p className="mt-1 text-xl font-semibold text-white">{fmt(a.amount,a.cur)}</p><div className="mt-5 flex justify-between border-t border-white/[.08] pt-3 text-[11px] text-neutral-500"><span>{a.cur}</span><span>Счёт {String(i+1).padStart(2,"0")}</span></div></article>)}</div></section>
+<section className="mt-8 rounded-2xl border border-white/[.08] bg-[#101012] p-5 sm:p-6"><h2 className="font-semibold text-white">План интеграции Open Banking</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-400">Следующий этап — подключение провайдера, безопасная авторизация, синхронизация и сверка остатков. Сейчас реальные банковские счета не подключены; демонстрационные остатки не участвуют в расчётах платежей.</p><div className="mt-5 grid gap-2 sm:grid-cols-3">{["Выбор провайдера API","Безопасная авторизация","Синхронизация и сверка"].map((x,i)=><div key={x} className="rounded-xl border border-white/[.06] bg-black/20 p-3"><p className="text-xs text-neutral-500">Этап 0{i+1}</p><p className="mt-1 text-sm text-neutral-200">{x}</p></div>)}</div></section></main>}

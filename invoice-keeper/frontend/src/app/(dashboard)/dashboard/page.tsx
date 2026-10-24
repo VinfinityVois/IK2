@@ -19,7 +19,7 @@ interface Occurrence {
   id: number;
   recurring_payment_id: number;
   name: string | null;
-  amount: number | null;
+  amount: number | string | null;
   currency: string | null;
   due_date: string;
   is_paid: boolean;

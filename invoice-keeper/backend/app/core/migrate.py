@@ -1,36 +1,36 @@
-"""Простые ALTER для SQLite, когда create_all не добавляет колонки."""
+"""Добавляет поля Telegram и совместимость старых SQLite/PostgreSQL баз."""
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 async def ensure_sqlite_columns(engine: AsyncEngine) -> None:
-    if engine.dialect.name != "sqlite":
-        return
-
     async with engine.begin() as conn:
-        # users.email
-        cols = await conn.execute(text("PRAGMA table_info(users)"))
-        user_cols = {row[1] for row in cols.fetchall()}
-        if "email" not in user_cols:
-            await conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
-            print("[migrate] users.email added")
-
-        # profile fields
-        for col, typ in [
-            ("full_name", "VARCHAR(255)"),
-            ("phone", "VARCHAR(32)"),
-            ("locale", "VARCHAR(8) DEFAULT 'ru'"),
-        ]:
-            if col not in user_cols:
-                await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typ}"))
-                print(f"[migrate] users.{col} added")
-                user_cols.add(col)
-
-        # recurring_payments.owner_id
-        cols2 = await conn.execute(text("PRAGMA table_info(recurring_payments)"))
-        rp_cols = {row[1] for row in cols2.fetchall()}
-        if "owner_id" not in rp_cols:
-            await conn.execute(
-                text("ALTER TABLE recurring_payments ADD COLUMN owner_id INTEGER REFERENCES users(id)")
-            )
+        dialect = conn.dialect.name
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1] for row in result.fetchall()}
+        elif dialect == "postgresql":
+            result = await conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'users'"))
+            columns = {row[0] for row in result.fetchall()}
+        else:
+            return
+        definitions = {
+            "email": "VARCHAR(255)", "full_name": "VARCHAR(255)", "phone": "VARCHAR(32)",
+            "locale": "VARCHAR(8) DEFAULT 'ru'", "telegram_id": "BIGINT",
+            "telegram_link_code": "VARCHAR(16)", "telegram_link_expires_at": "TIMESTAMP WITH TIME ZONE",
+        }
+        for column, definition in definitions.items():
+            if column not in columns:
+                await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} {definition}"))
+                print(f"[migrate] users.{column} added")
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_id ON users (telegram_id)"))
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_telegram_link_code ON users (telegram_link_code)"))
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(recurring_payments)"))
+            rp_columns = {row[1] for row in result.fetchall()}
+        else:
+            result = await conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'recurring_payments'"))
+            rp_columns = {row[0] for row in result.fetchall()}
+        if "owner_id" not in rp_columns:
+            await conn.execute(text("ALTER TABLE recurring_payments ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL"))
             print("[migrate] recurring_payments.owner_id added")

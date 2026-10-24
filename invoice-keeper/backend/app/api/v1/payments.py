@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.payment_occurrence import PaymentOccurrence
+from app.models.recurring_payment import RecurringPayment
 from app.models.user import User
 from app.schemas.summary import CurrencySummary, PaymentsSummary
 
@@ -21,23 +22,25 @@ async def get_payments_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Итоговые суммы платежей по валютам."""
-    result = await db.execute(
-        select(PaymentOccurrence).options(selectinload(PaymentOccurrence.recurring_payment))
+    """Возвращает сводку только по платежам текущего пользователя.
+
+    Администратор может просматривать сводку по всем владельцам.
+    """
+    query = (
+        select(PaymentOccurrence)
+        .join(
+            RecurringPayment,
+            PaymentOccurrence.recurring_payment_id == RecurringPayment.id,
+        )
+        .options(selectinload(PaymentOccurrence.recurring_payment))
     )
+
+    if current_user.role != "admin":
+        query = query.where(RecurringPayment.owner_id == current_user.id)
+
+    result = await db.execute(query)
     occurrences = result.scalars().all()
 
-    query = db.query(PaymentOccurrence).join(
-        RecurringPayment,
-        PaymentOccurrence.recurring_payment_id == RecurringPayment.id,
-    )
-
-    if not current_user_is_admin:
-        query = query.filter(
-            RecurringPayment.owner_id == current_user.id
-        )
-
-    # Группируем по валюте
     stats: dict[str, dict] = defaultdict(
         lambda: {
             "total": Decimal("0"),
@@ -51,24 +54,26 @@ async def get_payments_summary(
         }
     )
 
-    for occ in occurrences:
-        if not occ.recurring_payment:
+    for occurrence in occurrences:
+        payment = occurrence.recurring_payment
+        if payment is None:
             continue
-        cur = occ.recurring_payment.currency
-        amount = occ.recurring_payment.amount
 
-        stats[cur]["total"] += amount
-        stats[cur]["count_total"] += 1
+        currency = payment.currency
+        amount = payment.amount
+        bucket = stats[currency]
+        bucket["total"] += amount
+        bucket["count_total"] += 1
 
-        if occ.is_paid:
-            stats[cur]["paid"] += amount
-            stats[cur]["count_paid"] += 1
+        if occurrence.is_paid:
+            bucket["paid"] += amount
+            bucket["count_paid"] += 1
         else:
-            stats[cur]["unpaid"] += amount
-            stats[cur]["count_unpaid"] += 1
-            if occ.is_overdue:
-                stats[cur]["overdue"] += amount
-                stats[cur]["count_overdue"] += 1
+            bucket["unpaid"] += amount
+            bucket["count_unpaid"] += 1
+            if occurrence.is_overdue:
+                bucket["overdue"] += amount
+                bucket["count_overdue"] += 1
 
     by_currency = [
         CurrencySummary(
@@ -84,5 +89,4 @@ async def get_payments_summary(
         )
         for currency, data in sorted(stats.items())
     ]
-
     return PaymentsSummary(by_currency=by_currency)

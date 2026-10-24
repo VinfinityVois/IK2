@@ -14,7 +14,6 @@ const config: Config = {
         ring: "var(--ring)",
         background: "var(--background)",
         foreground: "var(--foreground)",
-      
         primary: {
           DEFAULT: "var(--primary)",
           foreground: "var(--primary-foreground)",
@@ -43,7 +42,6 @@ const config: Config = {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
         },
-      
         dossier: {
           bg: "#0a0a0f",
           card: "#12121a",

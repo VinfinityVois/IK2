@@ -1,4 +1,4 @@
-"""Тестовые данные: аренда RUB, сервер USD, подписка EUR."""
+"""Создание демонстрационных платежей для администратора при пустой базе."""
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -7,20 +7,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
-from app.services.periods import next_monthly_date
+from app.models.user import User
 
 
 async def seed_demo_payments(db: AsyncSession) -> None:
-    result = await db.execute(select(RecurringPayment).limit(1))
-    if result.scalar_one_or_none():
-        return  # уже есть данные
+    """Создаёт демо-данные только при пустом списке регулярных платежей.
+
+    Демо-платежи назначаются администратору, чтобы не оставались без владельца
+    и не попадали в чужие пользовательские аккаунты.
+    """
+    existing = await db.execute(select(RecurringPayment.id).limit(1))
+    if existing.scalar_one_or_none() is not None:
+        return
+
+    admin_result = await db.execute(
+        select(User).where(User.role == "admin").order_by(User.id).limit(1)
+    )
+    admin = admin_result.scalar_one_or_none()
+    if admin is None:
+        print("[Seed] Demo payments skipped: admin user was not found")
+        return
 
     today = date.today()
-    # Один платёж скоро (через 2 дня) — чтобы сработало напоминание
-    soon = today + timedelta(days=2)
-    # Один уже «просроченный» период для демо
+    soon = today + timedelta(days=max(1,  settings_days_before()))
     past = today - timedelta(days=5)
-
     demos = [
         {
             "name": "Аренда офиса",
@@ -48,39 +58,44 @@ async def seed_demo_payments(db: AsyncSession) -> None:
         },
     ]
 
-    for d in demos:
-        rp = RecurringPayment(
-            name=d["name"],
-            amount=d["amount"],
-            currency=d["currency"],
-            next_due_date=d["next_due_date"],
+    for item in demos:
+        payment = RecurringPayment(
+            owner_id=admin.id,
+            name=item["name"],
+            amount=item["amount"],
+            currency=item["currency"],
+            next_due_date=item["next_due_date"],
             periodicity="monthly",
-            description=d["description"],
+            description=item["description"],
             is_active=True,
         )
-        db.add(rp)
+        db.add(payment)
         await db.flush()
 
-        # Текущий период
         db.add(
             PaymentOccurrence(
-                recurring_payment_id=rp.id,
-                due_date=d["next_due_date"],
+                recurring_payment_id=payment.id,
+                due_date=item["next_due_date"],
                 is_paid=False,
                 reminder_sent=False,
             )
         )
-
-        # Прошлый период (для истории / просрочки)
-        if d["extra_past"]:
+        if item["extra_past"]:
             db.add(
                 PaymentOccurrence(
-                    recurring_payment_id=rp.id,
-                    due_date=d["extra_past"],
+                    recurring_payment_id=payment.id,
+                    due_date=item["extra_past"],
                     is_paid=False,
                     reminder_sent=True,
                 )
             )
 
     await db.commit()
-    print("[Seed] Demo payments created (RUB / USD / EUR)")
+    print("[Seed] Demo payments created and assigned to admin")
+
+
+def settings_days_before() -> int:
+    # Локальный импорт не создаёт цикл при загрузке настроек приложения.
+    from app.core.config import settings
+
+    return max(1, settings.REMINDER_DAYS_BEFORE)

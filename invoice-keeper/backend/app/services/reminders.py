@@ -37,6 +37,12 @@ async def process_reminders(db: AsyncSession) -> int:
                PaymentOccurrence.due_date <= threshold)
         .order_by(PaymentOccurrence.due_date)
     )
+
+    from datetime import date, timedelta
+
+    today = date.today()
+    reminder_date = today + timedelta(days=3)
+
     sent = 0
     for occ in result.scalars().all():
         rp = occ.recurring_payment

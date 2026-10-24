@@ -27,6 +27,16 @@ async def get_payments_summary(
     )
     occurrences = result.scalars().all()
 
+    query = db.query(PaymentOccurrence).join(
+        RecurringPayment,
+        PaymentOccurrence.recurring_payment_id == RecurringPayment.id,
+    )
+
+    if not current_user_is_admin:
+        query = query.filter(
+            RecurringPayment.owner_id == current_user.id
+        )
+
     # Группируем по валюте
     stats: dict[str, dict] = defaultdict(
         lambda: {

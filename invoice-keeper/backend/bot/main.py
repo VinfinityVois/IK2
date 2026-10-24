@@ -22,7 +22,18 @@ from app.services.periods import create_next_period_after_payment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-bot = Bot(token=settings.TELEGRAM_BOT_TOKEN or "0:0")
+# bot = Bot(token=settings.TELEGRAM_BOT_TOKEN or "0:0")
+async def main():
+    token = settings.TELEGRAM_BOT_TOKEN
+
+    if not token:
+        raise RuntimeError(
+            "Не задан TELEGRAM_BOT_TOKEN в настройках"
+        )
+
+    bot = Bot(token=token)
+
+    # Ниже оставь существующую логику запуска бота.
 dp = Dispatcher()
 
 async def get_linked_user(telegram_id: int) -> User | None:

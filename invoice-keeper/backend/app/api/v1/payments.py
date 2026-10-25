@@ -35,9 +35,6 @@ async def get_payments_summary(
         .options(selectinload(PaymentOccurrence.recurring_payment))
     )
 
-    if current_user.role != "admin":
-        query = query.where(RecurringPayment.owner_id == current_user.id)
-
     result = await db.execute(query)
     occurrences = result.scalars().all()
 

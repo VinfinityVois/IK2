@@ -1,4 +1,3 @@
-
 from datetime import date
 from typing import Annotated, Optional
 
@@ -13,10 +12,11 @@ from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
 from app.models.user import User
 from app.schemas.payment_occurrence import (
+    PaymentOccurrenceList,
     PaymentOccurrenceOut,
     PaymentOccurrenceUpdate,
 )
-from app.services.periods import create_next_period_after_payment
+from app.services.periods import create_next_period_after_payment, get_today
 
 router = APIRouter(
     prefix="/payment-occurrences",
@@ -41,18 +41,16 @@ def _to_out(occurrence: PaymentOccurrence) -> PaymentOccurrenceOut:
 
 
 def _ensure_owner(occurrence: PaymentOccurrence, user: User) -> None:
-    payment = occurrence.recurring_payment
-
-    if payment is None or (
-        user.role != "admin" and payment.owner_id != user.id
-    ):
+    """Список общий (ТЗ): любой пользователь видит и отмечает любые платежи."""
+    if occurrence.recurring_payment is None:
         raise HTTPException(
             status_code=404,
             detail="Payment occurrence not found",
         )
 
 
-@router.get("/", response_model=list[PaymentOccurrenceOut])
+@router.get("", response_model=PaymentOccurrenceList)
+@router.get("/", response_model=PaymentOccurrenceList, include_in_schema=False)
 async def list_payment_occurrences(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -64,11 +62,6 @@ async def list_payment_occurrences(
         .join(PaymentOccurrence.recurring_payment)
         .options(selectinload(PaymentOccurrence.recurring_payment))
     )
-
-    if current_user.role != "admin":
-        query = query.where(
-            RecurringPayment.owner_id == current_user.id
-        )
 
     if is_paid is not None:
         query = query.where(PaymentOccurrence.is_paid == is_paid)
@@ -84,7 +77,8 @@ async def list_payment_occurrences(
             if item.is_overdue == is_overdue
         ]
 
-    return [_to_out(item) for item in occurrences]
+    items = [_to_out(item) for item in occurrences]
+    return PaymentOccurrenceList(items=items, total=len(items))
 
 
 @router.get("/{occurrence_id}", response_model=PaymentOccurrenceOut)
@@ -138,7 +132,7 @@ async def update_payment_occurrence(
         just_paid = data.is_paid and not occurrence.is_paid
         occurrence.is_paid = data.is_paid
         occurrence.paid_at = (
-            (data.paid_at or date.today()) if data.is_paid else None
+            (data.paid_at or get_today()) if data.is_paid else None
         )
 
     if data.paid_at is not None and occurrence.is_paid:

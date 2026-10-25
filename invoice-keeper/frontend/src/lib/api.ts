@@ -1,4 +1,3 @@
-
 import axios from "axios";
 
 const API_URL =
@@ -111,8 +110,10 @@ export async function getPaymentOccurrences(params?: {
   is_paid?: boolean;
   is_overdue?: boolean;
 }) {
-  const { data } = await api.get("/payment-occurrences/", { params });
-  return data;
+  const { data } = await api.get("/payment-occurrences", { params });
+  // Бэкенд отдаёт { items, total }; голый массив тоже принимаем — страницы читают .items
+  const items = Array.isArray(data) ? data : (data?.items ?? []);
+  return { items, total: Array.isArray(data) ? items.length : (data?.total ?? items.length) };
 }
 
 export async function updatePaymentOccurrence(

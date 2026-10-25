@@ -25,6 +25,7 @@ import {
   Loader2,
 } from "lucide-react";
 import {
+  api,
   getPaymentOccurrences,
   getPaymentsSummary,
   updatePaymentOccurrence,
@@ -153,6 +154,9 @@ const formatRequisites = (acc: (typeof DEMO_ACCOUNTS)[0]) =>
 export default function BanksPage() {
   const router = useRouter();
   const [demoCardIssued, setDemoCardIssued] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [showDemoSecurityCode, setShowDemoSecurityCode] = useState(false);
+  const [integrationConnected, setIntegrationConnected] = useState(false);
   const [items, setItems] = useState<Occurrence[]>([]);
   const [summary, setSummary] = useState<CurrencySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +194,26 @@ export default function BanksPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    try {
+      setDemoCardIssued(window.localStorage.getItem("ik_demo_card_issued") === "1");
+    } catch {
+      // localStorage недоступен: карта сохранится только до закрытия вкладки.
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api.get("/open-banking/overview")
+      .then(({ data }) => {
+        if (active) setIntegrationConnected(Number(data?.accounts_count || 0) > 0);
+      })
+      .catch(() => {
+        if (active) setIntegrationConnected(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const stats = useMemo(() => {
     const unpaid = items.filter((x) => !x.is_paid);
@@ -264,7 +288,7 @@ export default function BanksPage() {
         </div>
       )}
 
-      {demoCardIssued && (
+      {showIssueModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="demo-card-title">
           <div className="w-full max-w-md rounded-2xl border border-blue-400/20 bg-[#111] p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -272,7 +296,7 @@ export default function BanksPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">DEMO ONLY</p>
                 <h2 id="demo-card-title" className="mt-1 text-xl font-semibold text-white">Виртуальная демо-карта выпущена</h2>
               </div>
-              <button type="button" onClick={() => setDemoCardIssued(false)} className="rounded-lg px-2 py-1 text-neutral-400 hover:bg-white/10 hover:text-white" aria-label="Закрыть">Закрыть</button>
+              <button type="button" onClick={() => setShowIssueModal(false)} className="rounded-lg px-2 py-1 text-neutral-400 hover:bg-white/10 hover:text-white" aria-label="Закрыть">Закрыть</button>
             </div>
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 p-5">
               <div className="flex items-center justify-between">
@@ -285,8 +309,22 @@ export default function BanksPage() {
                 <div><p className="text-[10px] uppercase opacity-70">Срок</p><p className="mt-1">12/30</p></div>
               </div>
             </div>
-            <p className="mt-4 text-sm leading-5 text-amber-200">Это только визуальная тестовая карта. Она не является платёжным инструментом, не имеет настоящего PAN/CVC и не может использоваться для покупок.</p>
-            <button type="button" onClick={() => setDemoCardIssued(false)} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">Готово</button>
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-neutral-300">Демо-реквизиты</span>
+                <button type="button" onClick={() => setShowDemoSecurityCode((v) => !v)} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15">
+                  {showDemoSecurityCode ? "Скрыть код" : "Показать код"}
+                </button>
+              </div>
+              <p className="mt-2 font-mono text-neutral-200">Номер: 4242 4242 4242 4242</p>
+              <p className="mt-1 font-mono text-neutral-200">Срок: 12/30</p>
+              {showDemoSecurityCode && <p className="mt-1 font-mono text-neutral-200">CVC (тестовый): 123</p>}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-amber-200">Только тестовые значения для интерфейса. Это не настоящая банковская карта; номер и CVC не работают для платежей.</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => { void copyText("4242 4242 4242 4242", "Демо-номер"); }} className="rounded-xl border border-white/10 px-3 py-2.5 text-sm font-semibold text-white hover:bg-white/5">Копировать номер</button>
+              <button type="button" onClick={() => { setShowIssueModal(false); setShowDemoSecurityCode(false); }} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">Готово</button>
+            </div>
           </div>
         </div>
       )}
@@ -358,7 +396,12 @@ export default function BanksPage() {
           </button>
           <button
             type="button"
-            onClick={() => setDemoCardIssued(true)}
+            onClick={() => {
+              setDemoCardIssued(true);
+                setShowIssueModal(true);
+              setShowDemoSecurityCode(false);
+              try { window.localStorage.setItem("ik_demo_card_issued", "1"); } catch { /* session-only fallback */ }
+            }}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 px-5 text-sm font-semibold text-white shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] transition hover:brightness-110 active:scale-[0.98]"
           >
             <CreditCard className="h-4 w-4" />
@@ -469,7 +512,7 @@ export default function BanksPage() {
           </div>
           <div>
             <p className="text-xl font-semibold text-amber-200">Демо-режим</p>
-            <p className="mt-1 text-xs text-neutral-500">Open Banking — не подключён</p>
+            <p className="mt-1 text-xs text-neutral-500">{integrationConnected ? "Демо-банк подключён (тестовые данные)" : "Open Banking — не подключён"}</p>
           </div>
           <button
             type="button"
@@ -765,7 +808,7 @@ export default function BanksPage() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-rose-600 text-sm font-bold text-white">
                     A
                   </div>
-                  <span className="text-base font-bold tracking-tight">AuraPay Signature</span>
+                  <span className="text-base font-bold tracking-tight">{["AuraPay Signature", "Virtual Cloud & Dev", "Travel & Hospitality VIP"][cardIndex]}</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1">
                   <span className={`h-2 w-2 rounded-full ${freeze ? "bg-sky-300" : "bg-emerald-400"}`} />
@@ -784,8 +827,8 @@ export default function BanksPage() {
                   Доступный остаток (демо)
                 </p>
                 <p className="mt-1 text-2xl font-extrabold tracking-tight">
-                  1 240 500
-                  <span className="text-base font-semibold text-white/50">.00 ₽</span>
+                  {["1 240 500", "2 480", "350 000"][cardIndex]}
+                  <span className="text-base font-semibold text-white/50">{[".00 ₽", " USD", " ₽"][cardIndex]}</span>
                 </p>
               </div>
               <div className="relative z-10 mt-6 flex items-end justify-between border-t border-white/10 pt-3">
@@ -795,10 +838,10 @@ export default function BanksPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-[9px] uppercase tracking-wider text-white/40">Срок</p>
-                  <p className="text-xs font-medium tabular-nums text-white">08/29</p>
+                  <p className="text-xs font-medium tabular-nums text-white">{["08/29", "11/29", "04/30"][cardIndex]}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[13px] font-bold tracking-widest text-white">•••• 8967</p>
+                  <p className="text-[13px] font-bold tracking-widest text-white">{["•••• 8967", "•••• 4412", "•••• 1092"][cardIndex]}</p>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-white/50">
                     VISA CORPORATE
                   </p>

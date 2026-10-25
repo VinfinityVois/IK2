@@ -34,6 +34,25 @@ const nav = [
     ),
   },
   {
+    href: "/open-banking",
+    label: "Open Banking",
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={1.75}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 10h18M5 10V20M9 10V20M15 10V20M19 10V20M2 20h20M12 3L2 8h20L12 3z"
+        />
+      </svg>
+    ),
+  },
+  {
     href: "/calendar",
     label: "Календарь",
     icon: (

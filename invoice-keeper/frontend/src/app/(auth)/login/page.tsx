@@ -8,7 +8,6 @@ import { register as apiRegister } from "@/lib/api";
 import { TopographyBackground } from "@/components/ui/topography-bg";
 import { FlipWords } from "@/components/ui/flip-words";
 import { cn } from "@/lib/utils";
-import { isAxiosError } from "axios";
 
 const words = ["платежи", "аренду", "подписки", "серверы"];
 
@@ -35,17 +34,16 @@ export default function LoginPage() {
     try {
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      const detail = isAxiosError<{ detail?: string }>(err)
-        ? err.response?.data?.detail
-        : undefined;
-    
+      router.push("/overview");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
       fail(
         detail === "User is inactive"
           ? "Аккаунт отключён"
           : "Неверный логин или пароль"
       );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,20 +54,15 @@ export default function LoginPage() {
       await apiRegister(username, email, password);
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      const detail = isAxiosError<{
-        detail?: string | Array<{ msg?: string }>;
-      }>(err)
-        ? err.response?.data?.detail
-        : undefined;
-    
+      router.push("/overview");
+    } catch (err: any) {
+      const d = err?.response?.data?.detail;
       fail(
-        typeof detail === "string"
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((item) => item.msg || "Ошибка проверки данных").join(", ")
-            : "Ошибка регистрации"
+        typeof d === "string"
+          ? d
+          : Array.isArray(d)
+          ? d.map((x: any) => x.msg).join(", ")
+          : "Ошибка регистрации"
       );
     } finally {
       setLoading(false);
@@ -80,11 +73,18 @@ export default function LoginPage() {
     "w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white placeholder-neutral-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition-all";
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white overflow-hidden relative">
-      <TopographyBackground />
+    <div className="min-h-screen text-white overflow-hidden relative">
+      <TopographyBackground
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#171717_0%,#000_100%)] text-blue-500/40"
+        levels={16}
+        speed={1}
+        scale={1}
+        peak={1}
+        interactive
+      />
 
       {/* SVG decor */}
-      <svg className="absolute top-0 right-0 w-[480px] h-[480px] opacity-[0.07] pointer-events-none" viewBox="0 0 400 400">
+      <svg className="absolute top-0 right-0 w-[480px] h-[480px] opacity-[0.07] pointer-events-none z-[1]" viewBox="0 0 400 400">
         <circle cx="320" cy="80" r="120" fill="none" stroke="#3b82f6" strokeWidth="1" />
         <circle cx="320" cy="80" r="80" fill="none" stroke="#3b82f6" strokeWidth="0.5" />
         <path d="M200 200 L320 80" stroke="#3b82f6" strokeWidth="0.5" />

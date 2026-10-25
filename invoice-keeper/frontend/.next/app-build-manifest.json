@@ -6,10 +6,10 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/page": [
+    "/(auth)/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/(auth)/login/page.js"
     ],
     "/(dashboard)/layout": [
       "static/chunks/webpack.js",
@@ -26,35 +26,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/banks/page.js"
     ],
-    "/(dashboard)/calendar/page": [
+    "/(dashboard)/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/calendar/page.js"
+      "static/chunks/app/(dashboard)/settings/page.js"
+    ],
+    "/(dashboard)/users/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/users/page.js"
     ],
     "/(dashboard)/forecast/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/forecast/page.js"
     ],
-    "/(dashboard)/settings/page": [
+    "/(dashboard)/calendar/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/settings/page.js"
+      "static/chunks/app/(dashboard)/calendar/page.js"
     ],
-    "/(auth)/login/page": [
+    "/(dashboard)/overview/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/login/page.js"
-    ],
-    "/overview/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/overview/page.js"
-    ],
-    "/(dashboard)/users/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/users/page.js"
+      "static/chunks/app/(dashboard)/overview/page.js"
     ]
   }
 }

@@ -9,13 +9,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#050505] text-neutral-100">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      />
+
       <div
-        className="transition-all duration-300 min-h-screen"
-        style={{ marginLeft: collapsed ? 64 : 240 }}
+        className="min-h-screen transition-all duration-300"
+        style={{ paddingLeft: collapsed ? 96 : 288 }}
       >
         {children}
       </div>
+
       <TgAssistant />
     </div>
   );

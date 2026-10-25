@@ -1,6 +1,5 @@
-"""Персональные Telegram-напоминания с кнопкой оплаты и журналированием."""
+"""Проверка сроков и отправка напоминаний в Telegram."""
 from datetime import date, timedelta
-from html import escape
 
 import httpx
 from sqlalchemy import select
@@ -10,109 +9,121 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
-from app.models.telegram_message_log import TelegramMessageLog
-from app.models.user import User
 
 
-async def _send(
-    chat_id: int, text: str, occurrence_id: int
-) -> tuple[bool, str | None, str | None]:
+async def send_telegram_message(text: str) -> bool:
+    """Отправка сообщения в чат из .env. Возвращает True при успехе."""
     token = settings.TELEGRAM_BOT_TOKEN
-    if not token or token.startswith("123456"):
-        return False, None, "TELEGRAM_BOT_TOKEN не настроен"
+    chat_id = settings.TELEGRAM_CHAT_ID
+    if not token or not chat_id or str(token).startswith("123456"):
+        print(f"[Telegram] Skip (no token/chat): {text[:80]}...")
+        return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "reply_markup": {
-            "inline_keyboard": [[{
-                "text": "✅ Оплачено",
-                "callback_data": f"pay:{occurrence_id}",
-            }]]
-        },
-    }
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(url, json=payload)
-        data = response.json()
-        if response.is_success and data.get("ok"):
-            message_id = data.get("result", {}).get("message_id")
-            return True, str(message_id) if message_id is not None else None, None
-        return False, None, str(data.get("description", f"HTTP {response.status_code}"))[:1000]
-    except Exception as exc:
-        return False, None, str(exc)[:1000]
+            resp = await client.post(
+                url,
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                },
+            )
+            if resp.status_code == 200:
+                return True
+            print(f"[Telegram] Error {resp.status_code}: {resp.text}")
+            return False
+    except Exception as e:
+        print(f"[Telegram] Exception: {e}")
+        return False
+
+
+def format_reminder(occ: PaymentOccurrence, rp: RecurringPayment) -> str:
+    return (
+        f"🔔 <b>Напоминание о платеже</b>\n\n"
+        f"<b>{rp.name}</b>\n"
+        f"Сумма: <code>{rp.amount} {rp.currency}</code>\n"
+        f"Срок оплаты: <b>{occ.due_date.isoformat()}</b>\n\n"
+        f"Invoice Keeper · Личное дело"
+    )
+
+
+def _needs_reminder(occ: PaymentOccurrence, today: date | None = None) -> bool:
+    """Напоминание: неоплачен, ещё не слали, срок ≤ today+N (включая просрочку)."""
+    if occ.is_paid or occ.reminder_sent:
+        return False
+    today = today or date.today()
+    threshold = today + timedelta(days=settings.REMINDER_DAYS_BEFORE)
+    return occ.due_date <= threshold
+
+
+async def send_reminder_for_occurrence(
+    db: AsyncSession,
+    occ: PaymentOccurrence,
+    *,
+    commit: bool = True,
+) -> bool:
+    """
+    Отправить напоминание по одному occurrence (без дублей).
+    Учитывает is_active регулярного платежа.
+    """
+    if not _needs_reminder(occ):
+        return False
+
+    rp = occ.recurring_payment
+    if rp is None:
+        result = await db.execute(
+            select(RecurringPayment).where(RecurringPayment.id == occ.recurring_payment_id)
+        )
+        rp = result.scalar_one_or_none()
+    if not rp or not rp.is_active:
+        return False
+
+    text = format_reminder(occ, rp)
+    ok = await send_telegram_message(text)
+    token = settings.TELEGRAM_BOT_TOKEN
+    demo_mode = not token or str(token).startswith("123456")
+    # В демо без токена тоже помечаем, чтобы не дублировать
+    if ok or demo_mode:
+        occ.reminder_sent = True
+        if commit:
+            await db.commit()
+        print(f"[Reminder] {rp.name} due {occ.due_date} (sent={ok})")
+        return True
+    return False
 
 
 async def process_reminders(db: AsyncSession) -> int:
-    """Отправляет одно напоминание о неоплаченном платеже в заданном окне.
-
-    Учитывает REMINDER_DAYS_BEFORE, не отправляет уведомления по уже
-    просроченным платежам и помечает напоминание отправленным только при успехе.
+    """
+    Пакетная проверка:
+    - неоплаченные
+    - reminder_sent == False
+    - due_date в окне [−∞; today+N]  (просрочка и «за 3 дня»)
+    - регулярный платёж активен
+    Удалённые (is_active=False) не напоминают.
     """
     today = date.today()
-    threshold = today + timedelta(days=max(0, settings.REMINDER_DAYS_BEFORE))
+    threshold = today + timedelta(days=settings.REMINDER_DAYS_BEFORE)
 
-    query = (
+    result = await db.execute(
         select(PaymentOccurrence)
-        .join(RecurringPayment)
+        .join(RecurringPayment, PaymentOccurrence.recurring_payment_id == RecurringPayment.id)
         .options(selectinload(PaymentOccurrence.recurring_payment))
         .where(
-            PaymentOccurrence.is_paid.is_(False),
-            PaymentOccurrence.reminder_sent.is_(False),
-            PaymentOccurrence.due_date >= today,
+            PaymentOccurrence.is_paid == False,  # noqa: E712
+            PaymentOccurrence.reminder_sent == False,  # noqa: E712
             PaymentOccurrence.due_date <= threshold,
-            RecurringPayment.is_active.is_(True),
-            RecurringPayment.owner_id.is_not(None),
+            RecurringPayment.is_active == True,  # noqa: E712
         )
-        .order_by(PaymentOccurrence.due_date)
     )
-    result = await db.execute(query)
     occurrences = result.scalars().all()
     sent = 0
 
-    for occurrence in occurrences:
-        payment = occurrence.recurring_payment
-        if payment is None or payment.owner_id is None:
-            continue
-
-        owner_result = await db.execute(
-            select(User).where(
-                User.id == payment.owner_id,
-                User.is_active.is_(True),
-            )
-        )
-        owner = owner_result.scalar_one_or_none()
-        if owner is None or not owner.telegram_id:
-            continue
-
-        name = escape(payment.name)
-        currency = escape(payment.currency)
-        message_text = (
-            "🔔 <b>Напоминание об оплате</b>\n\n"
-            f"<b>{name}</b>\n"
-            f"Сумма: <code>{payment.amount} {currency}</code>\n"
-            f"Срок оплаты: <b>{occurrence.due_date.isoformat()}</b>\n\n"
-            "Нажмите «Оплачено» после платежа."
-        )
-        ok, message_id, error = await _send(
-            owner.telegram_id, message_text, occurrence.id
-        )
-        db.add(
-            TelegramMessageLog(
-                user_id=owner.id,
-                payment_occurrence_id=occurrence.id,
-                message_type="reminder",
-                status="sent" if ok else "failed",
-                message_text=message_text,
-                telegram_message_id=message_id,
-                error=error,
-            )
-        )
-        if ok:
-            occurrence.reminder_sent = True
+    for occ in occurrences:
+        if await send_reminder_for_occurrence(db, occ, commit=False):
             sent += 1
 
-    await db.commit()
+    if sent:
+        await db.commit()
     return sent

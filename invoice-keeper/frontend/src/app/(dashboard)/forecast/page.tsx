@@ -12,7 +12,6 @@ import {
   Lock,
   Pencil,
   Shield,
-  TrendingUp,
   Wallet,
   BarChart3,
   Gauge,
@@ -222,7 +221,6 @@ export default function ForecastPage() {
       byCurrencyAllUnpaid[c] = (byCurrencyAllUnpaid[c] || 0) + num(x.amount);
     }
 
-    // bars
     const n = days === 7 ? 7 : days === 30 ? 6 : 9;
     const step = days / n;
     const bars = Array.from({ length: n }, () => ({
@@ -247,7 +245,6 @@ export default function ForecastPage() {
     });
     const maxBar = Math.max(...bars.map((b) => b.amount), 1);
 
-    // category breakdown on all items (paid+unpaid) for structure
     const catMap: Record<string, number> = {};
     for (const x of items) {
       const cat = categorize(x.name);
@@ -262,7 +259,6 @@ export default function ForecastPage() {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    // map demo limits spent from categories (approximate)
     const limits = DEMO_LIMITS.map((L) => {
       let spent = 0;
       if (L.id === "it") spent = catMap["IT & Cloud"] || 0;
@@ -279,7 +275,6 @@ export default function ForecastPage() {
       .filter((x) => (x.currency || "RUB") === "RUB")
       .reduce((s, x) => s + num(x.amount), 0);
 
-    // summary totals
     let summaryUnpaid = 0;
     let summaryOverdue = 0;
     let summaryPaid = 0;
@@ -299,7 +294,8 @@ export default function ForecastPage() {
     }
 
     const planDemo = Math.max(summaryUnpaid + summaryPaid, 100_000);
-    const factPct = planDemo > 0 ? Math.min(100, ((summaryPaid + summaryUnpaid) / planDemo) * 100) : 0;
+    const factPct =
+      planDemo > 0 ? Math.min(100, ((summaryPaid + summaryUnpaid) / planDemo) * 100) : 0;
 
     return {
       unpaid,
@@ -325,7 +321,10 @@ export default function ForecastPage() {
   const markPaid = async (id: number) => {
     setPayingId(id);
     try {
-      await updatePaymentOccurrence(id, { is_paid: true });
+      await updatePaymentOccurrence(id, {
+        is_paid: true,
+        paid_at: new Date().toISOString().slice(0, 10),
+      });
       showToast("Платёж отмечен оплаченным");
       await load();
     } catch (e) {
@@ -354,7 +353,8 @@ export default function ForecastPage() {
       "",
       "=== Просрочено ===",
       ...analytics.overdue.map(
-        (x) => `${x.name || "Платёж"} | ${fmtMoney(x.amount, x.currency || "RUB")} | ${fmtDate(x.due_date)}`
+        (x) =>
+          `${x.name || "Платёж"} | ${fmtMoney(x.amount, x.currency || "RUB")} | ${fmtDate(x.due_date)}`
       ),
       "",
       "Примечание: лимиты отделов — демо. Расчёт обязательств — из payment-occurrences.",
@@ -377,7 +377,6 @@ export default function ForecastPage() {
         </div>
       )}
 
-      {/* Header */}
       <header className="mb-8 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -429,7 +428,9 @@ export default function ForecastPage() {
           </button>
           <button
             type="button"
-            onClick={() => showToast("Установка лимитов отделов — после расширения модели данных")}
+            onClick={() =>
+              showToast("Установка лимитов отделов — после расширения модели данных")
+            }
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 px-4 text-sm font-semibold text-white shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] transition hover:brightness-110"
           >
             <Gauge className="h-4 w-4" />
@@ -438,7 +439,6 @@ export default function ForecastPage() {
         </div>
       </header>
 
-      {/* KPI row */}
       <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5 flex flex-col justify-between min-h-[150px] gap-3">
           <div className="flex items-start justify-between">
@@ -538,30 +538,25 @@ export default function ForecastPage() {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
                 Кассовый разрыв
               </p>
-              <p className="mt-1 text-xl font-semibold text-white">
-                Не оценивается
-              </p>
+              <p className="mt-1 text-xl font-semibold text-white">Не оценивается</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-neutral-400">
               <Shield className="h-5 w-5" />
             </div>
           </div>
           <p className="text-xs text-neutral-500 leading-relaxed">
-            Без банковских остатков нельзя подтвердить отсутствие разрыва. Только обязательства по БД.
+            Без банковских остатков нельзя подтвердить отсутствие разрыва. Только обязательства по
+            БД.
           </p>
         </article>
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left */}
         <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* Chart card */}
           <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5 sm:p-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Динамика обязательств
-                </h2>
+                <h2 className="text-lg font-semibold text-white">Динамика обязательств</h2>
                 <p className="text-xs text-neutral-500">
                   Суммы неоплаченных платежей по срокам в выбранном окне
                 </p>
@@ -611,7 +606,9 @@ export default function ForecastPage() {
                           title={`${b.label}: ${fmtMoney(b.amount, "RUB")} (${b.count})`}
                           className="w-full rounded-t-lg bg-gradient-to-t from-rose-700 to-rose-400 transition-all duration-500 hover:brightness-110"
                           style={{
-                            height: `${b.amount ? Math.max(6, (b.amount / analytics.maxBar) * 100) : 0}%`,
+                            height: `${
+                              b.amount ? Math.max(6, (b.amount / analytics.maxBar) * 100) : 0
+                            }%`,
                           }}
                         />
                       </div>
@@ -639,7 +636,9 @@ export default function ForecastPage() {
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
                         <div
-                          className={`h-full rounded-full ${CATEGORY_COLORS[c.name] || "bg-neutral-500"}`}
+                          className={`h-full rounded-full ${
+                            CATEGORY_COLORS[c.name] || "bg-neutral-500"
+                          }`}
                           style={{ width: `${Math.max(2, c.pct)}%` }}
                         />
                       </div>
@@ -722,10 +721,7 @@ export default function ForecastPage() {
                   </p>
                   <p className="text-sm font-bold text-white">
                     {analytics.upcoming.length
-                      ? fmtMoney(
-                          analytics.rubUpcoming / analytics.upcoming.length,
-                          "RUB"
-                        )
+                      ? fmtMoney(analytics.rubUpcoming / analytics.upcoming.length, "RUB")
                       : "—"}
                   </p>
                 </div>
@@ -765,14 +761,11 @@ export default function ForecastPage() {
             </div>
           </article>
 
-          {/* Limits matrix — demo filled with category spend */}
           <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5 sm:p-6">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-white">
-                    Матрица лимитов (демо)
-                  </h2>
+                  <h2 className="text-lg font-semibold text-white">Матрица лимитов (демо)</h2>
                   <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold text-neutral-400">
                     {analytics.limits.length} отделов
                   </span>
@@ -811,7 +804,9 @@ export default function ForecastPage() {
                     </div>
                     <div className="flex-1 max-w-xs flex flex-col gap-1">
                       <div className="flex justify-between text-xs tabular-nums">
-                        <span className={`font-semibold ${warn ? "text-rose-300" : "text-white"}`}>
+                        <span
+                          className={`font-semibold ${warn ? "text-rose-300" : "text-white"}`}
+                        >
                           {fmtMoney(row.spent, "RUB")}
                         </span>
                         <span className="text-neutral-500">
@@ -861,9 +856,7 @@ export default function ForecastPage() {
           </article>
         </div>
 
-        {/* Right */}
         <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* Gauge */}
           <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5 flex flex-col items-center text-center">
             <div className="mb-2 flex w-full items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
@@ -961,7 +954,6 @@ export default function ForecastPage() {
             </div>
           </article>
 
-          {/* Top categories */}
           <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-white">Структура по названиям</h3>
@@ -986,7 +978,9 @@ export default function ForecastPage() {
                 <div key={c.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`h-2.5 w-2.5 rounded-full ${CATEGORY_COLORS[c.name] || "bg-neutral-500"}`}
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        CATEGORY_COLORS[c.name] || "bg-neutral-500"
+                      }`}
                     />
                     <span className="text-neutral-300">{c.name}</span>
                   </div>
@@ -1006,7 +1000,6 @@ export default function ForecastPage() {
             </div>
           </article>
 
-          {/* Interpretation */}
           <article className="rounded-2xl border border-white/[0.07] bg-[#111] p-5">
             <h3 className="text-base font-semibold text-white mb-3">Интерпретация</h3>
             <div className="space-y-2.5">
@@ -1014,8 +1007,8 @@ export default function ForecastPage() {
                 <div className="rounded-xl border border-rose-400/15 bg-rose-500/[0.06] p-3">
                   <p className="text-sm font-medium text-rose-200">Проверьте просрочки</p>
                   <p className="mt-1 text-xs text-neutral-400 leading-relaxed">
-                    {analytics.overdue.length} платежей просрочены. Отметьте оплату или скорректируйте
-                    сроки на дашборде.
+                    {analytics.overdue.length} платежей просрочены. Отметьте оплату или
+                    скорректируйте сроки на дашборде.
                   </p>
                 </div>
               ) : (

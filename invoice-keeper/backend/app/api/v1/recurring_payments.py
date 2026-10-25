@@ -14,6 +14,7 @@ from app.schemas.recurring_payment import (
     RecurringPaymentList,
     RecurringPaymentOut,
 )
+from app.services.reminders import send_reminder_for_occurrence
 
 router = APIRouter(prefix="/recurring-payments", tags=["recurring-payments"])
 
@@ -68,6 +69,15 @@ async def create_recurring_payment(
     db.add(occurrence)
     await db.commit()
     await db.refresh(rp)
+    await db.refresh(occurrence)
+
+    # Если срок уже в окне напоминания (≤ N дней) — шлём сразу, без ожидания scheduler
+    occurrence.recurring_payment = rp
+    try:
+        await send_reminder_for_occurrence(db, occurrence, commit=True)
+    except Exception as e:
+        print(f"[Reminder] immediate send failed: {e}")
+
     return rp
 
 

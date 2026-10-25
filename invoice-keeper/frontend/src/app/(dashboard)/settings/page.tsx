@@ -16,6 +16,7 @@ import {
   Save,
   History,
   Building2,
+  MessageCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -63,6 +64,9 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCur, setShowCur] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [tgCode, setTgCode] = useState<string | null>(null);
+  const [tgExpires, setTgExpires] = useState<number>(0);
+  const [tgLoading, setTgLoading] = useState(false);
 
   const showMsg = (t: string) => {
     setMsg(t);
@@ -210,6 +214,33 @@ export default function SettingsPage() {
 
   const inputCls =
     "w-full h-11 rounded-xl border border-white/[0.08] bg-[#0c0c0c] px-3.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/20 transition";
+
+
+  const requestTelegramCode = async () => {
+    setTgLoading(true);
+    try {
+      const { data } = await api.post<{
+        code: string;
+        expires_in_seconds: number;
+        instruction?: string;
+      }>("/profile/telegram-link-code");
+      setTgCode(data.code);
+      setTgExpires(data.expires_in_seconds || 600);
+      showMsg("Код создан — отправьте боту /link " + data.code);
+    } catch (e: unknown) {
+      if (isAxiosError<{ detail?: string }>(e)) {
+        showErr(
+          typeof e.response?.data?.detail === "string"
+            ? e.response.data.detail
+            : "Не удалось создать код"
+        );
+      } else {
+        showErr("Не удалось создать код");
+      }
+    } finally {
+      setTgLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -660,7 +691,47 @@ export default function SettingsPage() {
                 </dd>
               </div>
             </dl>
+
+
+          <article className="mt-6 rounded-2xl border border-white/[0.07] bg-[#111] p-5 sm:p-6">
+            <div className="mb-3 flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-[#229ED9]" />
+              <h2 className="text-sm font-semibold text-white">Telegram-бот</h2>
+            </div>
+            <p className="mb-4 text-xs text-neutral-500 leading-relaxed">
+              Привяжите Telegram, чтобы получать напоминания об оплате и отмечать платежи
+              кнопкой «Оплачено». Код действует 10 минут.
+            </p>
+            <button
+              type="button"
+              disabled={tgLoading}
+              onClick={() => void requestTelegramCode()}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#229ED9] px-4 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+            >
+              {tgLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageCircle className="h-4 w-4" />
+              )}
+              Получить код привязки
+            </button>
+            {tgCode && (
+              <div className="mt-4 rounded-xl border border-[#229ED9]/30 bg-[#229ED9]/10 p-4">
+                <p className="text-[11px] uppercase tracking-wider text-neutral-400 mb-1">
+                  Код (≈{Math.round(tgExpires / 60)} мин)
+                </p>
+                <p className="font-mono text-2xl font-bold tracking-widest text-white">
+                  {tgCode}
+                </p>
+                <p className="mt-2 text-xs text-neutral-400">
+                  В боте отправьте:{" "}
+                  <code className="text-[#229ED9]">/link {tgCode}</code>
+                </p>
+              </div>
+            )}
           </article>
+
+        </article>
 
           <article className="rounded-2xl border border-amber-400/15 bg-amber-500/[0.05] p-4">
             <div className="flex gap-3">

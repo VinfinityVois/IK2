@@ -35,27 +35,53 @@ export default function TgAssistant() {
   const [notice, setNotice] = useState("");
   const [showAll, setShowAll] = useState(false);
 
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [telegram, payments] = await Promise.all([
-        getTelegramStatus(),
-        getPaymentOccurrences() as Promise<Occurrence[]>,
-        getPaymentsSummary(),
-      ]);
-
+      const telegram = await getTelegramStatus();
       setStatus(telegram);
-      setOccurrences(Array.isArray(payments) ? payments : []);
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : "Не удалось загрузить данные"
+        err instanceof Error
+          ? `Не удалось проверить Telegram: ${err.message}`
+          : "Не удалось проверить Telegram"
       );
+    }
+
+    try {
+      const payments = await getPaymentOccurrences();
+      const list = Array.isArray(payments)
+        ? payments
+        : Array.isArray(payments?.items)
+          ? payments.items
+          : [];
+
+      setOccurrences(list);
+    } catch (err: unknown) {
+      setError((previous) =>
+        [
+          previous,
+          err instanceof Error
+            ? `Не удалось загрузить платежи: ${err.message}`
+            : "Не удалось загрузить платежи",
+        ]
+          .filter(Boolean)
+          .join(". ")
+      );
+    }
+
+    try {
+      await getPaymentsSummary();
+    } catch {
+      // Ошибка сводки не должна сбрасывать статус Telegram.
     } finally {
       setLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     if (isOpen) void refresh();

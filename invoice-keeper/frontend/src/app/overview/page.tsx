@@ -87,7 +87,7 @@ export default function OverviewPage() {
         getPaymentOccurrences(),
         getPaymentsSummary().catch(() => ({ by_currency: [] as CurrencySummary[] })),
       ]);
-      setItems(occ.items || []);
+      setItems(Array.isArray(occ) ? occ : Array.isArray(occ?.items) ? occ.items : []);
       setSummary(sum.by_currency || []);
     } catch (e) {
       console.error(e);

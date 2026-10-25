@@ -1,8 +1,8 @@
+
 import axios from "axios";
 
-
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "") ||
   "http://127.0.0.1:8000/api/v1";
 
 export const api = axios.create({
@@ -10,10 +10,10 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 15000,
 });
 
-
-// Добавляем токен к каждому запросу
+// Выводим полезную информацию о запросе, если он завершился ошибкой.
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("access_token");
@@ -24,14 +24,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// При 401 — разлогиниваем
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    console.error("API request failed:", {
+      message: error?.message,
+      code: error?.code,
+      method: error?.config?.method,
+      baseURL: error?.config?.baseURL,
+      url: error?.config?.url,
+      fullURL: `${error?.config?.baseURL ?? ""}${error?.config?.url ?? ""}`,
+      status: error?.response?.status,
+      responseData: error?.response?.data,
+      responseHeaders: error?.response?.headers,
+      hasRequest: Boolean(error?.request),
+    });
+
+    if (
+      error?.response?.status === 401 &&
+      typeof window !== "undefined"
+    ) {
       localStorage.removeItem("access_token");
       window.location.href = "/login";
     }
+
     return Promise.reject(error);
   }
 );

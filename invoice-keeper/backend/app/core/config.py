@@ -16,13 +16,12 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # Security
-    SECRET_KEY: str = "aP_PojMTrEfF-RPMHGqL9_7bVbypAqtmeD0WyD7XBGa2KGOGL_R5mxbmwNaS_aQm"
+    SECRET_KEY: str = "change-me-in-production-use-long-random-string"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./invoice_keeper.db"
-    # For PostgreSQL: postgresql+asyncpg://user:pass@localhost:5432/invoice_keeper
+    DATABASE_URL: str = "sqlite+aiosqlite:///../invoice_keeper.db"
 
     # Admin (from .env)
     ADMIN_USERNAME: str = "admin"
@@ -31,8 +30,8 @@ class Settings(BaseSettings):
     # Timezone
     TIMEZONE: str = "Europe/Moscow"
 
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str = "8939392914:AAE1_V6AD98rAPfqYLeDQYAoIDMNX1n-28o"
+    # Telegram — set in backend/.env (never commit real token)
+    TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
 
     # Reminders

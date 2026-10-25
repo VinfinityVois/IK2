@@ -1,8 +1,18 @@
-"""Персональный Telegram-бот Invoice Keeper. Запуск: python -m bot.main из backend."""
+"""Персональный Telegram-бот Invoice Keeper.
+
+Запуск из каталога backend:
+  python -m bot.main
+
+Нужен TELEGRAM_BOT_TOKEN в backend/.env и общая БД с API (DATABASE_URL).
+"""
+from __future__ import annotations
+
 import asyncio
 import logging
 import sys
+from collections import defaultdict
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from html import escape
 from pathlib import Path
 
@@ -21,16 +31,48 @@ from sqlalchemy import desc, select  # noqa: E402
 from sqlalchemy.orm import selectinload  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.core.database import AsyncSessionLocal  # noqa: E402
+from app.core.database import AsyncSessionLocal, Base, engine  # noqa: E402
 from app.models.payment_occurrence import PaymentOccurrence  # noqa: E402
 from app.models.recurring_payment import RecurringPayment  # noqa: E402
 from app.models.telegram_message_log import TelegramMessageLog  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.services.periods import create_next_period_after_payment  # noqa: E402
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("ik2.bot")
 dp = Dispatcher()
+
+HELP_TEXT = (
+    "<b>Invoice Keeper — бот</b>\n\n"
+    "Команды:\n"
+    "/start — статус привязки\n"
+    "/link КОД — привязать аккаунт (код из веб-профиля)\n"
+    "/unlink — отвязать Telegram\n"
+    "/payments — неоплаченные\n"
+    "/upcoming — ближайшие сроки\n"
+    "/overdue — просроченные\n"
+    "/summary — сводка по валютам\n"
+    "/journal — последние уведомления\n"
+    "/help — эта справка"
+)
+
+
+async def ensure_schema() -> None:
+    """Создаёт таблицы, если бот запущен без API (та же DATABASE_URL)."""
+    # Импорт моделей регистрирует metadata
+    import app.models  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        from app.core.migrate import ensure_sqlite_columns
+
+        await ensure_sqlite_columns(engine)
+    except Exception as exc:
+        logger.warning("migrate skipped: %s", exc)
 
 
 async def get_linked_user(telegram_id: int) -> User | None:
@@ -51,7 +93,9 @@ async def require_link(message: Message) -> User | None:
     if user is None:
         await message.answer(
             "Чтобы пользоваться ботом, сначала привяжите аккаунт IK2.\n\n"
-            "Войдите в веб-приложение, получите код в профиле и отправьте:\n"
+            "1. Войдите в веб-приложение\n"
+            "2. Откройте Настройки → Telegram\n"
+            "3. Получите код и отправьте:\n"
             "<code>/link ВАШ_КОД</code>",
             parse_mode="HTML",
         )
@@ -66,20 +110,21 @@ async def cmd_start(message: Message):
     if user is None:
         await message.answer(
             "<b>Invoice Keeper</b>\n\n"
-            "Персональные напоминания об оплате.\n\n"
-            "Для начала привяжите аккаунт IK2 командой /link КОД. "
-            "Код можно получить в авторизованном профиле IK2.",
+            "Персональные напоминания об оплате и быстрая отметка «Оплачено».\n\n"
+            "Привяжите аккаунт командой:\n<code>/link КОД</code>\n"
+            "Код выдаётся в веб-профиле (Настройки → Telegram).",
             parse_mode="HTML",
         )
         return
-    username = escape(user.username)
     await message.answer(
-        f"<b>Invoice Keeper</b>\nАккаунт: {username}\n\n"
-        "Команды:\n/payments — мои платежи\n/upcoming — ближайшие сроки\n"
-        "/overdue — просроченные\n/summary — сводка\n"
-        "/journal — последние сообщения\n/unlink — отвязать Telegram",
+        f"<b>Invoice Keeper</b>\nАккаунт: <b>{escape(user.username)}</b>\n\n{HELP_TEXT}",
         parse_mode="HTML",
     )
+
+
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    await message.answer(HELP_TEXT, parse_mode="HTML")
 
 
 @dp.message(Command("link"))
@@ -125,15 +170,14 @@ async def cmd_link(message: Message, command: CommandObject):
         if existing.scalar_one_or_none() is not None:
             await message.answer(
                 "Этот Telegram уже привязан к другому аккаунту IK2. "
-                "Сначала выполните /unlink в том аккаунте."
+                "Сначала выполните /unlink."
             )
             return
 
-        # Не перезаписываем Telegram ID, уже связанный с другим пользователем.
         if user.telegram_id is not None and user.telegram_id != message.from_user.id:
             await message.answer(
                 "Этот аккаунт IK2 уже связан с другим Telegram. "
-                "Сначала отвяжите его в профиле IK2."
+                "Сначала отвяжите его в профиле или /unlink."
             )
             return
 
@@ -143,9 +187,20 @@ async def cmd_link(message: Message, command: CommandObject):
         await db.commit()
         await db.refresh(user)
 
+        db.add(
+            TelegramMessageLog(
+                user_id=user.id,
+                message_type="link",
+                status="sent",
+                message_text=f"Telegram linked: {message.from_user.id}",
+            )
+        )
+        await db.commit()
+        username = user.username
+
     await message.answer(
-        f"Аккаунт <b>{escape(user.username)}</b> успешно привязан. "
-        "Напоминания будут приходить сюда.",
+        f"Аккаунт <b>{escape(username)}</b> успешно привязан.\n"
+        "Напоминания будут приходить сюда. /help — список команд.",
         parse_mode="HTML",
     )
 
@@ -170,7 +225,7 @@ async def cmd_unlink(message: Message):
 
 
 async def list_occurrences(
-    user: User, overdue_only: bool = False, limit: int = 10
+    user: User, overdue_only: bool = False, limit: int = 15
 ) -> list[PaymentOccurrence]:
     async with AsyncSessionLocal() as db:
         query = (
@@ -191,6 +246,19 @@ async def list_occurrences(
         return items[:limit]
 
 
+def pay_keyboard(occurrence_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Оплачено",
+                    callback_data=f"pay:{occurrence_id}",
+                )
+            ]
+        ]
+    )
+
+
 async def send_occurrences(
     message: Message, user: User, overdue_only: bool = False
 ):
@@ -208,25 +276,20 @@ async def send_occurrences(
         )
         return
 
+    await message.answer(title, parse_mode="HTML")
     for occurrence in items:
         payment = occurrence.recurring_payment
         if payment is None:
             continue
         mark = "🔴" if occurrence.is_overdue else "⚪"
         text = (
-            f"{title}\n\n{mark} <b>{escape(payment.name)}</b>\n"
+            f"{mark} <b>{escape(payment.name)}</b>\n"
             f"Сумма: <code>{payment.amount} {escape(payment.currency)}</code>\n"
             f"Срок: <b>{occurrence.due_date.isoformat()}</b>"
         )
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[[
-                InlineKeyboardButton(
-                    text="✅ Оплачено",
-                    callback_data=f"pay:{occurrence.id}",
-                )
-            ]]
+        await message.answer(
+            text, parse_mode="HTML", reply_markup=pay_keyboard(occurrence.id)
         )
-        await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
 
 
 @dp.message(Command("payments"))
@@ -239,31 +302,25 @@ async def cmd_payments(message: Message):
 @dp.message(Command("upcoming"))
 async def cmd_upcoming(message: Message):
     user = await require_link(message)
-    if user is not None:
-        items = await list_occurrences(user)
-        items = [item for item in items if not item.is_overdue]
-        if not items:
-            await message.answer("Ближайших неоплаченных платежей нет.")
-            return
-        for occurrence in items:
-            payment = occurrence.recurring_payment
-            if payment is None:
-                continue
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[[
-                    InlineKeyboardButton(
-                        text="✅ Оплачено",
-                        callback_data=f"pay:{occurrence.id}",
-                    )
-                ]]
-            )
-            await message.answer(
-                f"📅 <b>{escape(payment.name)}</b>\n"
-                f"Сумма: <code>{payment.amount} {escape(payment.currency)}</code>\n"
-                f"Срок: <b>{occurrence.due_date.isoformat()}</b>",
-                parse_mode="HTML",
-                reply_markup=keyboard,
-            )
+    if user is None:
+        return
+    items = await list_occurrences(user)
+    items = [item for item in items if not item.is_overdue]
+    if not items:
+        await message.answer("Ближайших неоплаченных платежей нет.")
+        return
+    await message.answer("📅 <b>Ближайшие сроки</b>", parse_mode="HTML")
+    for occurrence in items:
+        payment = occurrence.recurring_payment
+        if payment is None:
+            continue
+        await message.answer(
+            f"<b>{escape(payment.name)}</b>\n"
+            f"Сумма: <code>{payment.amount} {escape(payment.currency)}</code>\n"
+            f"Срок: <b>{occurrence.due_date.isoformat()}</b>",
+            parse_mode="HTML",
+            reply_markup=pay_keyboard(occurrence.id),
+        )
 
 
 @dp.message(Command("overdue"))
@@ -279,9 +336,6 @@ async def cmd_summary(message: Message):
     if user is None:
         return
 
-    from collections import defaultdict
-    from decimal import Decimal
-
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(PaymentOccurrence)
@@ -291,7 +345,7 @@ async def cmd_summary(message: Message):
         )
         items = result.scalars().all()
 
-    stats = defaultdict(
+    stats: dict[str, dict] = defaultdict(
         lambda: {
             "paid": Decimal("0"),
             "unpaid": Decimal("0"),
@@ -304,7 +358,7 @@ async def cmd_summary(message: Message):
         if payment is None:
             continue
         bucket = "paid" if occurrence.is_paid else "unpaid"
-        stats[payment.currency][bucket] += payment.amount
+        stats[payment.currency][bucket] += Decimal(str(payment.amount))
         stats[payment.currency]["n_paid" if occurrence.is_paid else "n_unpaid"] += 1
 
     if not stats:
@@ -341,7 +395,9 @@ async def cmd_journal(message: Message):
     lines = ["🧾 <b>Последние события</b>"]
     for item in logs:
         status_text = "Отправлено" if item.status == "sent" else "Ошибка"
-        created = item.created_at.strftime("%d.%m.%Y %H:%M") if item.created_at else "—"
+        created = (
+            item.created_at.strftime("%d.%m.%Y %H:%M") if item.created_at else "—"
+        )
         lines.append(
             f"\n• {created} — {escape(item.message_type)}: {status_text}"
         )
@@ -408,21 +464,50 @@ async def cb_pay(callback: CallbackQuery):
 
     await callback.answer("Платёж отмечен оплаченным")
     if callback.message:
-        await callback.message.edit_text(
-            f"✅ <b>{name}</b> отмечен оплаченным ({date.today().isoformat()})",
-            parse_mode="HTML",
-        )
+        try:
+            await callback.message.edit_text(
+                f"✅ <b>{name}</b> отмечен оплаченным ({date.today().isoformat()})",
+                parse_mode="HTML",
+            )
+        except Exception:
+            await callback.message.answer(
+                f"✅ <b>{name}</b> отмечен оплаченным",
+                parse_mode="HTML",
+            )
+
+
+@dp.message()
+async def fallback(message: Message):
+    """Любой текст без команды — краткая подсказка."""
+    if message.text and message.text.startswith("/"):
+        await message.answer("Неизвестная команда. /help")
+        return
+    user = await get_linked_user(message.from_user.id) if message.from_user else None
+    if user is None:
+        await require_link(message)
+    else:
+        await message.answer("Используйте /help для списка команд.")
 
 
 async def main():
-    token = settings.TELEGRAM_BOT_TOKEN
-    if not token or token.startswith("123456"):
-        logger.error("Укажите действительный TELEGRAM_BOT_TOKEN в backend/.env")
-        return
+    token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
+    if not token or token.startswith("123456") or ":" not in token:
+        logger.error(
+            "Укажите действительный TELEGRAM_BOT_TOKEN в backend/.env\n"
+            "Пример: TELEGRAM_BOT_TOKEN=123456:ABC-DEF..."
+        )
+        sys.exit(1)
 
-    logger.info("Telegram bot starting")
-    async with Bot(token=token) as bot:
+    await ensure_schema()
+    logger.info("Telegram bot starting (DB=%s)", settings.DATABASE_URL)
+    bot = Bot(token=token)
+    try:
+        me = await bot.get_me()
+        logger.info("Logged in as @%s (%s)", me.username, me.id)
         await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+        await engine.dispose()
 
 
 if __name__ == "__main__":

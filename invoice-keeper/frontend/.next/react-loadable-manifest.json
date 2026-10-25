@@ -4,5 +4,11 @@
     "files": [
       "static/chunks/_app-pages-browser_node_modules_next_dist_client_dev_noop-turbopack-hmr_js.js"
     ]
+  },
+  "components\\layout\\dashboard-shell.tsx -> @/components/ui/terrain-3d-bg": {
+    "id": "components\\layout\\dashboard-shell.tsx -> @/components/ui/terrain-3d-bg",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_ui_terrain-3d-bg_tsx.js"
+    ]
   }
 }

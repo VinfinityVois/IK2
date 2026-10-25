@@ -24,33 +24,39 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error("API request failed:", {
-      message: error?.message,
-      code: error?.code,
-      method: error?.config?.method,
-      baseURL: error?.config?.baseURL,
-      url: error?.config?.url,
-      fullURL: `${error?.config?.baseURL ?? ""}${error?.config?.url ?? ""}`,
-      status: error?.response?.status,
-      responseData: error?.response?.data,
-      responseHeaders: error?.response?.headers,
-      hasRequest: Boolean(error?.request),
-    });
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const baseURL = error.config?.baseURL ?? "";
+      const url = error.config?.url ?? "";
+      const fullURL = `${baseURL.replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
 
-    if (
-      error?.response?.status === 401 &&
-      typeof window !== "undefined"
-    ) {
-      localStorage.removeItem("access_token");
-      window.location.href = "/login";
+      console.error("API request failed", {
+        message: error.message,
+        code: error.code ?? "NO_CODE",
+        method: error.config?.method?.toUpperCase() ?? "UNKNOWN",
+        fullURL,
+        status: error.response?.status ?? "NO_HTTP_RESPONSE",
+        responseData: error.response?.data ?? null,
+      });
+
+      if (
+        error.response?.status === 401 &&
+        typeof window !== "undefined"
+      ) {
+        localStorage.removeItem("access_token");
+        window.location.href = "/login";
+      }
+    } else {
+      console.error("Unexpected API error:", error);
     }
 
     return Promise.reject(error);
   }
 );
+
 
 // ===== Auth =====
 export async function register(username: string, email: string, password: string) {

@@ -212,7 +212,7 @@ export default function CalendarPage() {
     try {
       await updatePaymentOccurrence(id, {
         is_paid: true,
-        paid_at: new Date().toISOString().slice(0, 10),
+        paid_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
       });
       showToast("Отмечено оплаченным");
       await load();

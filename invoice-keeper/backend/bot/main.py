@@ -38,7 +38,7 @@ from app.models.payment_occurrence import PaymentOccurrence  # noqa: E402
 from app.models.recurring_payment import RecurringPayment  # noqa: E402
 from app.models.telegram_message_log import TelegramMessageLog  # noqa: E402
 from app.models.user import User  # noqa: E402
-from app.services.periods import create_next_period_after_payment  # noqa: E402
+from app.services.periods import create_next_period_after_payment, get_today  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -235,7 +235,6 @@ async def list_occurrences(
             .join(RecurringPayment)
             .options(selectinload(PaymentOccurrence.recurring_payment))
             .where(
-                RecurringPayment.owner_id == user.id,
                 RecurringPayment.is_active.is_(True),
                 PaymentOccurrence.is_paid.is_(False),
             )
@@ -268,7 +267,7 @@ async def send_occurrences(
     title = (
         "⚠️ <b>Просроченные платежи</b>"
         if overdue_only
-        else "📋 <b>Мои неоплаченные платежи</b>"
+        else "📋 <b>Неоплаченные платежи</b>"
     )
     if not items:
         await message.answer(
@@ -343,7 +342,7 @@ async def cmd_summary(message: Message):
             select(PaymentOccurrence)
             .join(RecurringPayment)
             .options(selectinload(PaymentOccurrence.recurring_payment))
-            .where(RecurringPayment.owner_id == user.id)
+            .where(RecurringPayment.is_active.is_(True))
         )
         items = result.scalars().all()
 
@@ -364,10 +363,10 @@ async def cmd_summary(message: Message):
         stats[payment.currency]["n_paid" if occurrence.is_paid else "n_unpaid"] += 1
 
     if not stats:
-        await message.answer("По вашему аккаунту пока нет платежей.")
+        await message.answer("Платежей пока нет.")
         return
 
-    lines = ["📊 <b>Моя сводка</b>"]
+    lines = ["📊 <b>Сводка по валютам</b>"]
     for currency, values in sorted(stats.items()):
         lines.append(
             f"\n<b>{escape(currency)}</b>\n"
@@ -435,21 +434,15 @@ async def cb_pay(callback: CallbackQuery):
             .where(PaymentOccurrence.id == occurrence_id)
         )
         occurrence = result.scalar_one_or_none()
-        if (
-            occurrence is None
-            or occurrence.recurring_payment is None
-            or occurrence.recurring_payment.owner_id != user.id
-        ):
-            await callback.answer(
-                "Этот платёж не принадлежит вашему аккаунту", show_alert=True
-            )
+        if occurrence is None or occurrence.recurring_payment is None:
+            await callback.answer("Платёж не найден", show_alert=True)
             return
         if occurrence.is_paid:
             await callback.answer("Уже отмечен оплаченным")
             return
 
         occurrence.is_paid = True
-        occurrence.paid_at = date.today()
+        occurrence.paid_at = get_today()
         await db.commit()
         await create_next_period_after_payment(db, occurrence)
         db.add(
@@ -468,7 +461,7 @@ async def cb_pay(callback: CallbackQuery):
     if callback.message:
         try:
             await callback.message.edit_text(
-                f"✅ <b>{name}</b> отмечен оплаченным ({date.today().isoformat()})",
+                f"✅ <b>{name}</b> отмечен оплаченным ({get_today().isoformat()})",
                 parse_mode="HTML",
             )
         except Exception:

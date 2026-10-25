@@ -5,48 +5,6 @@
       "version": "1.0.0"
     },
     "paths": {
-      "/api/v1/auth/register": {
-        "post": {
-          "tags": [
-            "auth"
-          ],
-          "summary": "Register",
-          "description": "Публичная регистрация обычного пользователя.",
-          "operationId": "register_api_v1_auth_register_post",
-          "requestBody": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterRequest"
-                }
-              }
-            },
-            "required": true
-          },
-          "responses": {
-            "201": {
-              "description": "Successful Response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/UserResponse"
-                  }
-                }
-              }
-            },
-            "422": {
-              "description": "Validation Error",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/HTTPValidationError"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "/api/v1/auth/login": {
         "post": {
           "tags": [
@@ -1790,34 +1748,6 @@
             "created_at"
           ],
           "title": "RecurringPaymentOut"
-        },
-        "RegisterRequest": {
-          "properties": {
-            "username": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 3,
-              "title": "Username"
-            },
-            "email": {
-              "type": "string",
-              "format": "email",
-              "title": "Email"
-            },
-            "password": {
-              "type": "string",
-              "maxLength": 128,
-              "minLength": 8,
-              "title": "Password"
-            }
-          },
-          "type": "object",
-          "required": [
-            "username",
-            "email",
-            "password"
-          ],
-          "title": "RegisterRequest"
         },
         "TelegramLinkCodeOut": {
           "properties": {

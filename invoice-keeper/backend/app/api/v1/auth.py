@@ -17,37 +17,6 @@ from app.core.password_policy import validate_password
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    data: RegisterRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Публичная регистрация обычного пользователя."""
-    pw_err = validate_password(data.password)
-    if pw_err:
-        raise HTTPException(status_code=400, detail=pw_err)
-
-    existing = await db.execute(
-        select(User).where(
-            or_(User.username == data.username, User.email == data.email)
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Username or email already registered")
-
-    user = User(
-        username=data.username,
-        email=data.email,
-        hashed_password=get_password_hash(data.password),
-        role="user",
-        is_active=True,
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user
-
-
 @router.post("/login", response_model=Token)
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],

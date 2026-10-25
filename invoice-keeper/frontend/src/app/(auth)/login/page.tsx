@@ -72,7 +72,7 @@ function Field({ id, label, icon: Icon, children }: { id: string; label: string;
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const mode = "login" as "login" | "register"; // регистрации нет: пользователей создаёт администратор
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -161,33 +161,8 @@ export default function LoginPage() {
               }}
             >
               <div className="rounded-[15px] bg-[#08090d]/80 backdrop-blur-2xl p-8">
-                <p className="lg:hidden text-2xl font-semibold tracking-tight mb-6">Контроль платежей</p>
-
-                <div className="relative grid grid-cols-2 rounded-xl bg-white/[0.04] border border-white/10 p-1 mb-6">
-                  {(["login", "register"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => {
-                        setMode(m);
-                        setError("");
-                      }}
-                      className={cn(
-                        "relative z-10 py-2 text-sm rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
-                        mode === m ? "text-black font-medium" : "text-neutral-400 hover:text-white"
-                      )}
-                    >
-                      {mode === m && (
-                        <motion.span
-                          layoutId="auth-tab"
-                          className="absolute inset-0 -z-10 rounded-lg bg-white"
-                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                        />
-                      )}
-                      {m === "login" ? "Вход" : "Регистрация"}
-                    </button>
-                  ))}
-                </div>
+                <p className="text-xl font-semibold tracking-tight mb-1">Вход</p>
+                <p className="text-xs text-neutral-500 mb-6">Учётные записи создаёт администратор</p>
 
                 <form onSubmit={submit}>
                   <AnimatePresence mode="wait" initial={false}>
@@ -276,9 +251,7 @@ export default function LoginPage() {
                 </form>
 
                 <p className="text-center text-[11px] text-neutral-500 mt-6">
-                  {mode === "login"
-                    ? "admin / admin123 · или свой аккаунт"
-                    : "Пароль хешируется bcrypt · JWT после входа"}
+                  Пароль хешируется bcrypt · JWT-сессия
                 </p>
               </div>
             </div>

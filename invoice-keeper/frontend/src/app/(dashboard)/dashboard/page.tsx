@@ -225,9 +225,16 @@ export default function DashboardPage() {
     };
   }, [token, fetchMe, router, loadData]);
 
+  // Права: добавлять и удалять платежи может только администратор (в API то же самое)
+  const isAdmin = user?.role === "admin";
+  const localToday = () => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  };
+  const [paidDate, setPaidDate] = useState("");
   useEffect(() => {
-    if (user && user.role !== "admin") router.replace("/dashboard");
-  }, [user, router]);
+    setPaidDate(detailsTarget?.paid_at ?? localToday());
+  }, [detailsTarget]);
 
   useEffect(() => {
     if (!toast) return;
@@ -244,12 +251,12 @@ export default function DashboardPage() {
     window.setTimeout(() => setSuccessMsg(""), 2800);
   }, []);
 
-  const handleTogglePaid = async (item: Occurrence) => {
+  const handleTogglePaid = async (item: Occurrence, date?: string) => {
     setBusyId(item.id);
     try {
       await updatePaymentOccurrence(item.id, {
         is_paid: !item.is_paid,
-        paid_at: !item.is_paid ? new Date().toISOString().slice(0, 10) : null,
+        paid_at: !item.is_paid ? date || localToday() : null,
       });
       showSuccess(item.is_paid ? "Статус оплаты обновлён" : "Платёж отмечен оплаченным");
       await loadData();
@@ -278,6 +285,21 @@ export default function DashboardPage() {
     } catch (error: unknown) {
       console.error("Не удалось деактивировать платёж:", error);
       notify("Не удалось деактивировать платёж. Попробуйте ещё раз.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleSavePaidDate = async (item: Occurrence, date: string) => {
+    setBusyId(item.id);
+    try {
+      await updatePaymentOccurrence(item.id, { paid_at: date });
+      setDetailsTarget(null);
+      showSuccess("Фактическая дата оплаты обновлена");
+      await loadData();
+    } catch (error: unknown) {
+      console.error("Не удалось изменить дату оплаты:", error);
+      notify("Не удалось изменить дату. Попробуйте ещё раз.");
     } finally {
       setBusyId(null);
     }
@@ -409,7 +431,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {selected.size > 0 && (
+            {isAdmin && selected.size > 0 && (
               <button
                 onClick={() => setBulkDeleteOpen(true)}
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-rose-400/25 px-3 text-xs font-medium text-rose-300 transition hover:bg-rose-400/10"
@@ -417,12 +439,14 @@ export default function DashboardPage() {
                 <Trash2 className="h-3.5 w-3.5" /> Деактивировать ({selected.size})
               </button>
             )}
+            {isAdmin && (
             <button
               onClick={() => setModalOpen(true)}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 px-4 text-xs font-semibold text-white shadow-[0_8px_24px_-10px_rgba(244,63,94,.8)] transition hover:brightness-110 active:scale-[.98]"
             >
               <Plus className="h-4 w-4" /> Новый платёж
             </button>
+            )}
           </div>
         </div>
       </header>
@@ -594,11 +618,13 @@ export default function DashboardPage() {
             ) : (
               <>
                 <div className="flex items-center gap-3 border-b border-white/[0.05] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-600 lg:px-6">
+                  {isAdmin && (
                   <HandCheckbox
                     checked={filtered.length > 0 && filtered.every((item) => selected.has(item.id))}
                     onChange={toggleAllVisible}
                     label="Выбрать все видимые платежи"
                   />
+                  )}
                   <span className="min-w-0 flex-1">Платёж / срок</span>
                   <span className="hidden w-32 text-right sm:block">Сумма</span>
                   <span className="hidden w-36 text-center md:block">Статус</span>
@@ -620,11 +646,13 @@ export default function DashboardPage() {
                           item.is_overdue && !item.is_paid && "bg-rose-500/[0.025]"
                         )}
                       >
+                        {isAdmin && (
                         <HandCheckbox
                           checked={selected.has(item.id)}
                           onChange={() => toggleSelect(item.id)}
                           label={`Выбрать платёж ${item.name || item.id}`}
                         />
+                        )}
 
                         <div className={cn(
                           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
@@ -730,11 +758,13 @@ export default function DashboardPage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-neutral-400"><Filter className="h-4 w-4" /></div>
               </div>
               <div className="mt-4 space-y-2">
+                {isAdmin && (
                 <button onClick={() => setModalOpen(true)} className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3 text-left transition hover:border-rose-400/20 hover:bg-rose-400/[0.05]">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-400/10 text-rose-300"><FilePlus2 className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-neutral-200">Создать платёж</span><span className="mt-0.5 block text-[10px] text-neutral-600">Новое регулярное обязательство</span></span>
                   <Plus className="h-4 w-4 text-neutral-600" />
                 </button>
+                )}
                 <button onClick={() => { setFilter("overdue"); setCurrency("all"); setSearch(""); }} className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3 text-left transition hover:border-rose-400/20 hover:bg-rose-400/[0.05]">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-300/[0.08] text-amber-200"><AlertTriangle className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-neutral-200">Проверить просрочки</span><span className="mt-0.5 block text-[10px] text-neutral-600">{stats.overdue} платежей требуют внимания</span></span>
@@ -817,16 +847,39 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="border-t border-white/[0.07] p-5">
+                <label htmlFor="paid-date" className="mb-1.5 block text-xs text-neutral-500">Фактическая дата оплаты</label>
+                <input
+                  id="paid-date"
+                  type="date"
+                  value={paidDate}
+                  max={localToday()}
+                  onChange={(e) => setPaidDate(e.target.value)}
+                  className="mb-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none [color-scheme:dark]"
+                />
+                {paidDate && paidDate > detailsTarget.due_date && (
+                  <p className="mb-3 text-[11px] text-amber-300/80">Дата позже срока: платёж будет считаться просроченным.</p>
+                )}
+                {detailsTarget.is_paid && paidDate && paidDate !== detailsTarget.paid_at && (
+                  <button
+                    disabled={busyId === detailsTarget.id}
+                    onClick={() => void handleSavePaidDate(detailsTarget, paidDate)}
+                    className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+                  >
+                    <Check className="h-4 w-4" /> Сохранить дату
+                  </button>
+                )}
                 <button
                   disabled={busyId === detailsTarget.id}
-                  onClick={() => { const item = detailsTarget; setDetailsTarget(null); void handleTogglePaid(item); }}
+                  onClick={() => { const item = detailsTarget; setDetailsTarget(null); void handleTogglePaid(item, paidDate); }}
                   className={cn("flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition disabled:opacity-50", detailsTarget.is_paid ? "border border-white/10 bg-white/[0.04] text-neutral-200 hover:bg-white/[0.08]" : "bg-gradient-to-r from-rose-500 to-red-600 text-white hover:brightness-110")}
                 >
                   {detailsTarget.is_paid ? <><X className="h-4 w-4" /> Отменить оплату</> : <><Check className="h-4 w-4" /> Отметить оплаченным</>}
                 </button>
+                {isAdmin && (
                 <button onClick={() => { setDeleteTarget(detailsTarget); setDetailsTarget(null); }} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-400/15 px-4 py-3 text-xs text-rose-300 transition hover:bg-rose-400/[0.07]">
                   <Trash2 className="h-3.5 w-3.5" /> Деактивировать регулярный платёж
                 </button>
+                )}
               </div>
             </motion.aside>
           </>

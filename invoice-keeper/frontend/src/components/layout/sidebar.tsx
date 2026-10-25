@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 const nav = [
   {

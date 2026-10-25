@@ -66,7 +66,9 @@ async def list_payment_occurrences(
     )
 
     if current_user.role != "admin":
-        query = query.where(RecurringPayment.owner_id == current_user.id)
+        query = query.where(
+            RecurringPayment.owner_id == current_user.id
+        )
 
     if is_paid is not None:
         query = query.where(PaymentOccurrence.is_paid == is_paid)

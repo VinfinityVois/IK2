@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { Onest } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const onest = Onest({ subsets: ["latin", "cyrillic"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Invoice Keeper — Личное дело",
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={cn("font-sans", geist.variable)}>
+    <html lang="ru" className={cn("font-sans", onest.variable)}>
       <body className="antialiased bg-dossier-bg text-gray-200 min-h-screen">
         {children}
       </body>

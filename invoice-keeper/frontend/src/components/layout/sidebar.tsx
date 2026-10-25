@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 import { useEffect } from "react";
 
 const nav = [
@@ -112,8 +113,9 @@ export function Sidebar({
 
   return (
     <aside
+      data-glow-card
       className={cn(
-        "fixed left-4 top-4 bottom-4 z-50 flex flex-col justify-between rounded-xl border border-white/[0.08] bg-[#0c0c0c]/90 backdrop-blur-xl shadow-[0_12px_32px_-4px_rgba(0,0,0,0.45)] p-3 transition-all duration-300",
+        "fixed left-4 top-4 bottom-4 z-50 flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#08090d]/80 backdrop-blur-2xl shadow-[0_30px_80px_-20px_rgba(37,99,235,0.35)] p-3 transition-all duration-300",
         collapsed ? "w-[72px]" : "w-64"
       )}
     >
@@ -173,22 +175,29 @@ export function Sidebar({
                 title={collapsed ? item.label : undefined}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl text-[13px] font-medium transition-all",
+                  "group relative flex items-center gap-3 rounded-xl text-[13px] font-medium transition-all",
                   collapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
                   active
-                    ? "bg-blue-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.35)]"
+                    ? "text-black font-semibold"
                     : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"
                 )}
               >
+                {active && (
+                  <motion.span
+                    layoutId="nav-pill"
+                    className="absolute inset-0 rounded-xl bg-white shadow-[0_8px_24px_-8px_rgba(255,255,255,0.35)]"
+                    transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                  />
+                )}
                 <span
                   className={cn(
-                    "shrink-0",
-                    active ? "text-white" : "text-neutral-500"
+                    "relative z-10 shrink-0",
+                    active ? "text-black" : "text-neutral-500 group-hover:text-neutral-300"
                   )}
                 >
                   {item.icon}
                 </span>
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
               </Link>
             );
           })}

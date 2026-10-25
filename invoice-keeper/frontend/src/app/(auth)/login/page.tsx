@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { AlertCircle, Eye, EyeOff, Loader2, Lock, Mail, User, type LucideIcon } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { register as apiRegister } from "@/lib/api";
-import { TopographyBackground } from "@/components/ui/topography-bg";
 import { FlipWords } from "@/components/ui/flip-words";
+import type { Pulse } from "@/components/ui/terrain-3d-bg";
 import { cn } from "@/lib/utils";
+
+const Terrain3DBackground = dynamic(() => import("@/components/ui/terrain-3d-bg"), { ssr: false });
 
 const words = ["платежи", "аренду", "подписки", "серверы"];
 
@@ -47,6 +51,24 @@ function formatValidationErrors(value: unknown): string {
     .join(", ");
 }
 
+
+const input =
+  "w-full h-12 pl-11 pr-4 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm placeholder-neutral-600 outline-none transition focus:bg-white/[0.07] focus:border-blue-400/60 focus:ring-4 focus:ring-blue-500/15";
+
+function Field({ id, label, icon: Icon, children }: { id: string; label: string; icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs text-neutral-400 mb-1.5">
+        {label}
+      </label>
+      <div className="relative group">
+        <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 group-focus-within:text-blue-400 transition-colors pointer-events-none" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
@@ -54,208 +76,211 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pulse, setPulse] = useState<Pulse>(null);
 
   const fail = (msg: string) => {
     setError(msg);
     setShake(true);
+    setPulse({ id: Date.now(), tone: "error" });
     setTimeout(() => setShake(false), 500);
   };
 
-  const handleLogin = async () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
     try {
+      if (mode === "register") await apiRegister(username, email, password);
       await login(username, password);
+      setPulse({ id: Date.now(), tone: "success" });
       sessionStorage.setItem("ik_welcome", "1");
-      router.push("/overview");
+      setTimeout(() => router.push("/overview"), 450); // даём волне дойти
     } catch (err: unknown) {
       const detail = getErrorDetail(err);
-      fail(detail === "User is inactive" ? "Аккаунт отключён" : "Неверный логин или пароль");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      await apiRegister(username, email, password);
-      await login(username, password);
-      sessionStorage.setItem("ik_welcome", "1");
-      router.push("/overview");
-    } catch (err: unknown) {
-      const detail = getErrorDetail(err);
-      if (typeof detail === "string") {
+      if (mode === "login") {
+        fail(detail === "User is inactive" ? "Аккаунт отключён" : "Неверный логин или пароль");
+      } else if (typeof detail === "string") {
         fail(detail);
-      } else if (Array.isArray(detail)) {
-        fail(formatValidationErrors(detail));
       } else {
-        fail("Ошибка регистрации");
+        fail(formatValidationErrors(detail));
       }
-    } finally {
       setLoading(false);
     }
   };
 
-  const field =
-    "w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 text-white placeholder-neutral-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40 transition-all";
+  // подсветка границы карточки следует за курсором
+  const track = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
 
   return (
     <div className="min-h-screen text-white overflow-hidden relative">
-      <TopographyBackground
-        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#171717_0%,#000_100%)] text-blue-500/40"
-      />
-
-      {/* SVG decor */}
-      <svg className="absolute top-0 right-0 w-[480px] h-[480px] opacity-[0.07] pointer-events-none z-[1]" viewBox="0 0 400 400">
-        <circle cx="320" cy="80" r="120" fill="none" stroke="#3b82f6" strokeWidth="1" />
-        <circle cx="320" cy="80" r="80" fill="none" stroke="#3b82f6" strokeWidth="0.5" />
-        <path d="M200 200 L320 80" stroke="#3b82f6" strokeWidth="0.5" />
-        <rect x="40" y="260" width="100" height="70" rx="8" fill="none" stroke="#fff" strokeWidth="0.5" />
-        <rect x="55" y="245" width="40" height="12" rx="3" fill="#3b82f6" opacity="0.5" />
-      </svg>
+      <Terrain3DBackground pulse={pulse} />
+      {/* виньетка: текст и форма читаются поверх рельефа */}
+      <div className="absolute inset-0 z-[1] pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_35%,#050505_100%)]" />
+      <div className="absolute inset-0 z-[1] pointer-events-none bg-gradient-to-r from-[#050505]/80 via-[#050505]/20 to-transparent" />
 
       <div className="relative z-10 min-h-screen grid lg:grid-cols-2">
         <div className="hidden lg:flex flex-col justify-center px-16 xl:px-24">
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.7 }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-xs text-neutral-400 mb-8">
+          <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 backdrop-blur text-xs text-neutral-300 mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
               Защищённый вход · JWT
             </div>
-            <h1 className="text-5xl font-bold tracking-tight leading-[1.1] mb-6">
+            <h1 className="text-6xl xl:text-7xl font-semibold tracking-tight leading-[1.05] mb-6">
               Контроль
               <br />
               <FlipWords words={words} className="text-blue-400" />
             </h1>
-            <p className="text-neutral-500 max-w-md text-sm leading-relaxed">
-              Личное дело регулярных платежей. Хеширование паролей (bcrypt),
-              JWT-сессии, разделение ролей admin / user.
+            <p className="text-neutral-400 max-w-md text-sm leading-relaxed">
+              Личное дело регулярных платежей. Хеширование паролей (bcrypt), JWT-сессии, разделение ролей admin / user.
             </p>
           </motion.div>
         </div>
 
         <div className="flex items-center justify-center p-6 sm:p-12">
           <motion.div
-            animate={shake ? { x: [-8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
-            transition={{ duration: 0.4 }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={shake ? { opacity: 1, y: 0, x: [-8, 8, -6, 6, -3, 3, 0] } : { opacity: 1, y: 0, x: 0 }}
+            transition={{ duration: shake ? 0.4 : 0.6 }}
             className="w-full max-w-md"
           >
-            <div className="relative bg-[#0c0c0c]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl">
-              {/* Tabs */}
-              <div className="flex rounded-lg border border-white/10 p-0.5 mb-6">
-                {(["login", "register"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      setMode(m);
-                      setError("");
-                    }}
-                    className={cn(
-                      "flex-1 py-2 rounded-md text-sm transition-all",
-                      mode === m
-                        ? "bg-white text-black font-medium"
-                        : "text-neutral-500 hover:text-white"
-                    )}
-                  >
-                    {m === "login" ? "Вход" : "Регистрация"}
-                  </button>
-                ))}
-              </div>
+            <div
+              onMouseMove={track}
+              className="rounded-2xl p-px shadow-[0_30px_80px_-20px_rgba(37,99,235,0.35)]"
+              style={{
+                background:
+                  "radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%), rgba(96,165,250,0.75), rgba(255,255,255,0.08) 65%)",
+              }}
+            >
+              <div className="rounded-[15px] bg-[#08090d]/80 backdrop-blur-2xl p-8">
+                <p className="lg:hidden text-2xl font-semibold tracking-tight mb-6">Контроль платежей</p>
 
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={mode}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-xs text-neutral-500 mb-1.5">
-                      Логин
-                    </label>
-                    <input
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className={field}
-                      placeholder="username"
-                      autoFocus
-                    />
-                  </div>
-
-                  {mode === "register" && (
-                    <div>
-                      <label className="block text-xs text-neutral-500 mb-1.5">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className={field}
-                        placeholder="you@example.com"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs text-neutral-500 mb-1.5">
-                      Пароль
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" &&
-                        (mode === "login" ? handleLogin() : handleRegister())
-                      }
-                      className={field}
-                      placeholder={mode === "register" ? "мин. 8 символов" : "••••••••"}
-                    />
-                  </div>
-
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2.5"
+                <div className="relative grid grid-cols-2 rounded-xl bg-white/[0.04] border border-white/10 p-1 mb-6">
+                  {(["login", "register"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setMode(m);
+                        setError("");
+                      }}
+                      className={cn(
+                        "relative z-10 py-2 text-sm rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60",
+                        mode === m ? "text-black font-medium" : "text-neutral-400 hover:text-white"
+                      )}
                     >
-                      <svg className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M12 8v4M12 16h.01" />
-                      </svg>
-                      <span>{error}</span>
+                      {mode === m && (
+                        <motion.span
+                          layoutId="auth-tab"
+                          className="absolute inset-0 -z-10 rounded-lg bg-white"
+                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                        />
+                      )}
+                      {m === "login" ? "Вход" : "Регистрация"}
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={submit}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={mode}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.18 }}
+                      className="space-y-4"
+                    >
+                      <Field id="username" label="Логин" icon={User}>
+                        <input
+                          id="username"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className={input}
+                          placeholder="username"
+                          autoComplete="username"
+                          autoFocus
+                          required
+                        />
+                      </Field>
+
+                      {mode === "register" && (
+                        <Field id="email" label="Email" icon={Mail}>
+                          <input
+                            id="email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className={input}
+                            placeholder="you@example.com"
+                            autoComplete="email"
+                            required
+                          />
+                        </Field>
+                      )}
+
+                      <Field id="password" label="Пароль" icon={Lock}>
+                        <input
+                          id="password"
+                          type={showPw ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className={cn(input, "pr-12")}
+                          placeholder={mode === "register" ? "мин. 8 символов" : "••••••••"}
+                          autoComplete={mode === "register" ? "new-password" : "current-password"}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPw((v) => !v)}
+                          aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-neutral-500 hover:text-white transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                        >
+                          {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </Field>
+
+                      {error && (
+                        <motion.div
+                          role="alert"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2.5"
+                        >
+                          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                          <span>{error}</span>
+                        </motion.div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="group relative w-full h-12 overflow-hidden rounded-xl bg-gradient-to-b from-blue-500 to-blue-600 text-white text-sm font-medium shadow-lg shadow-blue-600/30 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-70 outline-none focus-visible:ring-4 focus-visible:ring-blue-400/30"
+                      >
+                        <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/25 blur-md transition-transform duration-700 group-hover:translate-x-[420%]" />
+                        <span className="relative inline-flex items-center justify-center gap-2">
+                          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                          {mode === "login" ? "Войти" : "Создать аккаунт"}
+                        </span>
+                      </button>
                     </motion.div>
-                  )}
+                  </AnimatePresence>
+                </form>
 
-                  <button
-                    disabled={loading}
-                    onClick={mode === "login" ? handleLogin : handleRegister}
-                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
-                  >
-                    {loading
-                      ? "…"
-                      : mode === "login"
-                      ? "Войти"
-                      : "Создать аккаунт"}
-                  </button>
-                </motion.div>
-              </AnimatePresence>
-
-              <p className="text-center text-[11px] text-neutral-600 mt-6">
-                {mode === "login"
-                  ? "admin / admin123 · или свой аккаунт"
-                  : "Пароль хешируется bcrypt · JWT после входа"}
-              </p>
+                <p className="text-center text-[11px] text-neutral-500 mt-6">
+                  {mode === "login"
+                    ? "admin / admin123 · или свой аккаунт"
+                    : "Пароль хешируется bcrypt · JWT после входа"}
+                </p>
+              </div>
             </div>
           </motion.div>
         </div>

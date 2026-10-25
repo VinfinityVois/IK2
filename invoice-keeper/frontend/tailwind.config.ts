@@ -53,6 +53,7 @@ const config: Config = {
         },
       },
       fontFamily: {
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "Fira Code", "monospace"],
       },
     },

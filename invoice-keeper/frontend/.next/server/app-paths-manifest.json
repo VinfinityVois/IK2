@@ -1,9 +1,7 @@
 {
+  "/overview/page": "app/overview/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/forecast/page": "app/(dashboard)/forecast/page.js",
-  "/(dashboard)/calendar/page": "app/(dashboard)/calendar/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
   "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
-  "/(dashboard)/banks/page": "app/(dashboard)/banks/page.js"
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js"
 }

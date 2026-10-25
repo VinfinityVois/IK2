@@ -1,4 +1,4 @@
-// File: C:\MYDESK\wibe\IK2\invoice-keeper\frontend\src\app\(dashboard)\banks\page.tsx
+// File: C:\Users\eee\Documents\GitHub\IK2\invoice-keeper\frontend\src\app\(dashboard)\banks\page.tsx
 import * as entry from '../../../../../src/app/(dashboard)/banks/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

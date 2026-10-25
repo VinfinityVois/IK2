@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
 
 const nav = [
+  { href: "/overview", label: "Обзор", icon: "▦" },
   { href: "/dashboard", label: "Платежи", icon: "💳" },
   { href: "/banks", label: "Банки & Счета", icon: "🏦" },
   { href: "/calendar", label: "Календарь", icon: "📅" },

@@ -1,4 +1,4 @@
-// File: C:\MYDESK\wibe\IK2\invoice-keeper\frontend\src\app\(dashboard)\forecast\page.tsx
+// File: C:\Users\eee\Documents\GitHub\IK2\invoice-keeper\frontend\src\app\(dashboard)\forecast\page.tsx
 import * as entry from '../../../../../src/app/(dashboard)/forecast/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

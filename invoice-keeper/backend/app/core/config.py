@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # Security
-    SECRET_KEY: str = "change-me-in-production-super-secret-key-32chars"
+    SECRET_KEY: str = "aP_PojMTrEfF-RPMHGqL9_7bVbypAqtmeD0WyD7XBGa2KGOGL_R5mxbmwNaS_aQm"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     ALGORITHM: str = "HS256"
 
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Europe/Moscow"
 
     # Telegram
-    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_BOT_TOKEN: str = "8939392914:AAE1_V6AD98rAPfqYLeDQYAoIDMNX1n-28o"
     TELEGRAM_CHAT_ID: str = ""
 
     # Reminders

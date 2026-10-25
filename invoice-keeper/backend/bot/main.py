@@ -22,9 +22,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from aiogram import Bot, Dispatcher, F  # noqa: E402
 from aiogram.filters import Command, CommandObject  # noqa: E402
 from aiogram.types import (  # noqa: E402
+    BotCommand,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    MenuButtonCommands,
     Message,
 )
 from sqlalchemy import desc, select  # noqa: E402
@@ -489,6 +491,28 @@ async def fallback(message: Message):
         await message.answer("Используйте /help для списка команд.")
 
 
+async def setup_bot_menu(bot: Bot) -> None:
+    """Кнопка «Menu» слева от поля ввода: список команд бота."""
+    commands = [
+        BotCommand(command="start", description="Статус и привязка"),
+        BotCommand(command="help", description="Справка по командам"),
+        BotCommand(command="payments", description="Неоплаченные платежи"),
+        BotCommand(command="upcoming", description="Ближайшие сроки"),
+        BotCommand(command="overdue", description="Просроченные"),
+        BotCommand(command="summary", description="Сводка по валютам"),
+        BotCommand(command="journal", description="Журнал уведомлений"),
+        BotCommand(command="link", description="Привязать аккаунт: /link КОД"),
+        BotCommand(command="unlink", description="Отвязать Telegram"),
+    ]
+    await bot.set_my_commands(commands)
+    # Явно включить кнопку меню-команд у поля ввода
+    try:
+        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception as exc:
+        logger.warning("set_chat_menu_button: %s", exc)
+    logger.info("Bot menu commands registered (%d)", len(commands))
+
+
 async def main():
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token or token.startswith("123456") or ":" not in token:
@@ -504,10 +528,14 @@ async def main():
     try:
         me = await bot.get_me()
         logger.info("Logged in as @%s (%s)", me.username, me.id)
+        await setup_bot_menu(bot)
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
-        await engine.dispose()
+        try:
+            await engine.dispose()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

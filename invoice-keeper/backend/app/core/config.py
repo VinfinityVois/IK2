@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Europe/Moscow"
 
     # Telegram — set in backend/.env (never commit real token)
-    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_BOT_TOKEN: str = "8939392914:AAE1_V6AD98rAPfqYLeDQYAoIDMNX1n-28o"
     TELEGRAM_CHAT_ID: str = ""
 
     # Reminders

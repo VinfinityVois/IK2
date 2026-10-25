@@ -82,6 +82,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 from app.api.v1 import (  # noqa: E402
     auth,
     payments,
@@ -90,7 +91,9 @@ from app.api.v1 import (  # noqa: E402
     recurring_payments,
     telegram_link,
     users,
+    open_banking_demo,
 )
+
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(users.router, prefix=settings.API_V1_PREFIX)
@@ -99,6 +102,11 @@ app.include_router(payment_occurrences.router, prefix=settings.API_V1_PREFIX)
 app.include_router(payments.router, prefix=settings.API_V1_PREFIX)
 app.include_router(profile.router, prefix=settings.API_V1_PREFIX)
 app.include_router(telegram_link.router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(
+    open_banking_demo.router,
+    prefix=settings.API_V1_PREFIX,
+)
 
 
 @app.get("/")

@@ -81,6 +81,15 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/(dashboard)/open-banking/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/open-banking">> = Specific
+  const handler = {} as typeof import("../../src/app/(dashboard)/open-banking/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/(dashboard)/overview/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/overview">> = Specific

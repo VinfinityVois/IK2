@@ -89,7 +89,7 @@ export async function getPaymentOccurrences(params?: {
   is_paid?: boolean;
   is_overdue?: boolean;
 }) {
-  const { data } = await api.get("/payment-occurrences", { params });
+  const { data } = await api.get("/payment-occurrences/", { params });
   return data;
 }
 
@@ -104,5 +104,37 @@ export async function updatePaymentOccurrence(
 // ===== Summary =====
 export async function getPaymentsSummary() {
   const { data } = await api.get("/payments/summary");
+  return data;
+}
+
+
+export interface TelegramStatus {
+  linked: boolean;
+  telegram_id: number | null;
+  has_pending_code: boolean;
+  code_expires_at: string | null;
+}
+
+export interface TelegramLinkCode {
+  code: string;
+  expires_in_seconds: number;
+  expires_at: string;
+  instruction: string;
+  user_id: number;
+  username: string;
+}
+
+export async function getTelegramStatus(): Promise<TelegramStatus> {
+  const { data } = await api.get("/profile/telegram-status");
+  return data;
+}
+
+export async function createTelegramLinkCode(): Promise<TelegramLinkCode> {
+  const { data } = await api.post("/profile/telegram-link-code");
+  return data;
+}
+
+export async function unlinkTelegram() {
+  const { data } = await api.delete("/profile/telegram-link");
   return data;
 }

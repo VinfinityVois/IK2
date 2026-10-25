@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Sidebar } from "./sidebar";
-import { TgAssistant } from "./tg-assistant";
+import TgAssistant from "./tg-assistant";
 import { CardGlow } from "@/components/ui/card-glow";
 
 // один экземпляр на всё приложение: не пересоздаётся при переходах между страницами

@@ -1,3 +1,4 @@
+
 from datetime import date
 from typing import Annotated, Optional
 
@@ -12,13 +13,15 @@ from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
 from app.models.user import User
 from app.schemas.payment_occurrence import (
-    PaymentOccurrenceList,
     PaymentOccurrenceOut,
     PaymentOccurrenceUpdate,
 )
 from app.services.periods import create_next_period_after_payment
 
-router = APIRouter(prefix="/payment-occurrences", tags=["payment-occurrences"])
+router = APIRouter(
+    prefix="/payment-occurrences",
+    tags=["payment-occurrences"],
+)
 
 
 def _to_out(occurrence: PaymentOccurrence) -> PaymentOccurrenceOut:
@@ -39,15 +42,47 @@ def _to_out(occurrence: PaymentOccurrence) -> PaymentOccurrenceOut:
 
 def _ensure_owner(occurrence: PaymentOccurrence, user: User) -> None:
     payment = occurrence.recurring_payment
-    if user.role != "admin" and (
-        payment is None or payment.owner_id != user.id
-    ):
-        # Не раскрываем, существует ли чужая запись.
-        raise HTTPException(status_code=404, detail="Payment occurrence not found")
 
-def _ensure_owner(occurrence: PaymentOccurrence, user: User) -> None:
-    # Разрешаем всем авторизованным (админ и user)
-    pass
+    if payment is None or (
+        user.role != "admin" and payment.owner_id != user.id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Payment occurrence not found",
+        )
+
+
+@router.get("/", response_model=list[PaymentOccurrenceOut])
+async def list_payment_occurrences(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    is_paid: Optional[bool] = Query(None),
+    is_overdue: Optional[bool] = Query(None),
+):
+    query = (
+        select(PaymentOccurrence)
+        .join(PaymentOccurrence.recurring_payment)
+        .options(selectinload(PaymentOccurrence.recurring_payment))
+    )
+
+    if current_user.role != "admin":
+        query = query.where(RecurringPayment.owner_id == current_user.id)
+
+    if is_paid is not None:
+        query = query.where(PaymentOccurrence.is_paid == is_paid)
+
+    result = await db.execute(
+        query.order_by(PaymentOccurrence.due_date.asc())
+    )
+    occurrences = result.scalars().all()
+
+    if is_overdue is not None:
+        occurrences = [
+            item for item in occurrences
+            if item.is_overdue == is_overdue
+        ]
+
+    return [_to_out(item) for item in occurrences]
 
 
 @router.get("/{occurrence_id}", response_model=PaymentOccurrenceOut)
@@ -62,8 +97,13 @@ async def get_payment_occurrence(
         .where(PaymentOccurrence.id == occurrence_id)
     )
     occurrence = result.scalar_one_or_none()
+
     if occurrence is None:
-        raise HTTPException(status_code=404, detail="Payment occurrence not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Payment occurrence not found",
+        )
+
     _ensure_owner(occurrence, current_user)
     return _to_out(occurrence)
 
@@ -75,22 +115,29 @@ async def update_payment_occurrence(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Изменение статуса оплаты только владельцем платежа или администратором."""
     result = await db.execute(
         select(PaymentOccurrence)
         .options(selectinload(PaymentOccurrence.recurring_payment))
         .where(PaymentOccurrence.id == occurrence_id)
     )
     occurrence = result.scalar_one_or_none()
+
     if occurrence is None:
-        raise HTTPException(status_code=404, detail="Payment occurrence not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Payment occurrence not found",
+        )
+
     _ensure_owner(occurrence, current_user)
 
     just_paid = False
+
     if data.is_paid is not None:
         just_paid = data.is_paid and not occurrence.is_paid
         occurrence.is_paid = data.is_paid
-        occurrence.paid_at = (data.paid_at or date.today()) if data.is_paid else None
+        occurrence.paid_at = (
+            (data.paid_at or date.today()) if data.is_paid else None
+        )
 
     if data.paid_at is not None and occurrence.is_paid:
         occurrence.paid_at = data.paid_at

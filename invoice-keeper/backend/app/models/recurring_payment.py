@@ -42,6 +42,8 @@ class RecurringPayment(Base):
         nullable=False,
     )
 
+    original_day: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_admin   # ← добавили get_current_admin
 from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
 from app.models.user import User
@@ -19,10 +19,8 @@ from app.services.reminders import send_reminder_for_occurrence
 router = APIRouter(prefix="/recurring-payments", tags=["recurring-payments"])
 
 
-def _owner_filter(query, user: User):
-    if user.role != "admin":
-        query = query.where(RecurringPayment.owner_id == user.id)
-    return query
+# ---------- УБРАТЬ _owner_filter ----------
+# def _owner_filter(...): ...
 
 
 @router.get("", response_model=RecurringPaymentList)
@@ -31,10 +29,11 @@ async def list_recurring_payments(
     current_user: Annotated[User, Depends(get_current_user)],
     active_only: bool = True,
 ):
+    """Все пользователи видят общий список платежей."""
     query = select(RecurringPayment).order_by(RecurringPayment.next_due_date)
     if active_only:
         query = query.where(RecurringPayment.is_active == True)  # noqa: E712
-    query = _owner_filter(query, current_user)
+    # больше не фильтруем по owner_id
     result = await db.execute(query)
     items = result.scalars().all()
     return RecurringPaymentList(items=items, total=len(items))
@@ -44,11 +43,11 @@ async def list_recurring_payments(
 async def create_recurring_payment(
     data: RecurringPaymentCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],   # ← только админ
 ):
-    """Создание регулярного платежа + первый период (любой авторизованный — свои)."""
+    """Создание регулярного платежа — только администратор."""
     rp = RecurringPayment(
-        owner_id=current_user.id,
+        owner_id=current_user.id,          # или None, если не нужно
         name=data.name,
         amount=data.amount,
         currency=data.currency,
@@ -56,6 +55,8 @@ async def create_recurring_payment(
         periodicity=data.periodicity,
         description=data.description,
         is_active=True,
+        # важно: сохраняем исходный день месяца (см. патч дат ниже)
+        original_day=data.next_due_date.day,
     )
     db.add(rp)
     await db.flush()
@@ -71,7 +72,6 @@ async def create_recurring_payment(
     await db.refresh(rp)
     await db.refresh(occurrence)
 
-    # Если срок уже в окне напоминания (≤ N дней) — шлём сразу, без ожидания scheduler
     occurrence.recurring_payment = rp
     try:
         await send_reminder_for_occurrence(db, occurrence, commit=True)
@@ -85,7 +85,7 @@ async def create_recurring_payment(
 async def delete_recurring_payment(
     payment_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],   # ← только админ
 ):
     result = await db.execute(
         select(RecurringPayment).where(RecurringPayment.id == payment_id)
@@ -93,15 +93,12 @@ async def delete_recurring_payment(
     rp = result.scalar_one_or_none()
     if not rp:
         raise HTTPException(status_code=404, detail="Recurring payment not found")
-    if current_user.role != "admin" and rp.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not allowed")
 
     rp.is_active = False
     await db.commit()
 
 
 from pydantic import BaseModel
-
 
 class BulkDeleteRequest(BaseModel):
     ids: list[int]
@@ -111,9 +108,8 @@ class BulkDeleteRequest(BaseModel):
 async def bulk_deactivate(
     data: BulkDeleteRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_admin)],   # ← только админ
 ):
-    """Массовая деактивация. Повторов не создаём — только is_active=False."""
     if not data.ids:
         return {"deactivated": 0}
     result = await db.execute(
@@ -122,8 +118,6 @@ async def bulk_deactivate(
     items = result.scalars().all()
     n = 0
     for rp in items:
-        if current_user.role != "admin" and rp.owner_id != current_user.id:
-            continue
         if rp.is_active:
             rp.is_active = False
             n += 1

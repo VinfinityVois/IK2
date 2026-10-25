@@ -1,8 +1,11 @@
 {
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(dashboard)/banks/page": "app/(dashboard)/banks/page.js",
   "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
   "/(dashboard)/forecast/page": "app/(dashboard)/forecast/page.js",
-  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js"
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/calendar/page": "app/(dashboard)/calendar/page.js",
+  "/(dashboard)/open-banking/page": "app/(dashboard)/open-banking/page.js",
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js"
 }

@@ -1,5 +1,6 @@
 """Проверка сроков и отправка напоминаний в Telegram."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select
@@ -9,6 +10,11 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.models.payment_occurrence import PaymentOccurrence
 from app.models.recurring_payment import RecurringPayment
+
+
+def get_today() -> date:
+    """Сегодня в едином часовом поясе из .env (TIMEZONE)."""
+    return datetime.now(ZoneInfo(settings.TIMEZONE)).date()
 
 
 async def send_telegram_message(text: str) -> bool:
@@ -53,7 +59,7 @@ def _needs_reminder(occ: PaymentOccurrence, today: date | None = None) -> bool:
     """Напоминание: неоплачен, ещё не слали, срок ≤ today+N (включая просрочку)."""
     if occ.is_paid or occ.reminder_sent:
         return False
-    today = today or date.today()
+    today = today or get_today()
     threshold = today + timedelta(days=settings.REMINDER_DAYS_BEFORE)
     return occ.due_date <= threshold
 
@@ -103,7 +109,7 @@ async def process_reminders(db: AsyncSession) -> int:
     - регулярный платёж активен
     Удалённые (is_active=False) не напоминают.
     """
-    today = date.today()
+    today = get_today()
     threshold = today + timedelta(days=settings.REMINDER_DAYS_BEFORE)
 
     result = await db.execute(

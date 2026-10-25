@@ -45,39 +45,9 @@ def _ensure_owner(occurrence: PaymentOccurrence, user: User) -> None:
         # Не раскрываем, существует ли чужая запись.
         raise HTTPException(status_code=404, detail="Payment occurrence not found")
 
-
-@router.get("", response_model=PaymentOccurrenceList)
-async def list_payment_occurrences(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
-    is_paid: Optional[bool] = Query(None),
-    is_overdue: Optional[bool] = Query(None),
-    recurring_payment_id: Optional[int] = Query(None),
-):
-    query = (
-        select(PaymentOccurrence)
-        .join(RecurringPayment)
-        .options(selectinload(PaymentOccurrence.recurring_payment))
-        .order_by(PaymentOccurrence.due_date.desc())
-    )
-    if current_user.role != "admin":
-        query = query.where(RecurringPayment.owner_id == current_user.id)
-    if recurring_payment_id is not None:
-        query = query.where(
-            PaymentOccurrence.recurring_payment_id == recurring_payment_id
-        )
-    if is_paid is not None:
-        query = query.where(PaymentOccurrence.is_paid.is_(is_paid))
-
-    result = await db.execute(query)
-    items = result.scalars().all()
-    if is_overdue is not None:
-        items = [item for item in items if item.is_overdue == is_overdue]
-
-    return PaymentOccurrenceList(
-        items=[_to_out(item) for item in items],
-        total=len(items),
-    )
+def _ensure_owner(occurrence: PaymentOccurrence, user: User) -> None:
+    # Разрешаем всем авторизованным (админ и user)
+    pass
 
 
 @router.get("/{occurrence_id}", response_model=PaymentOccurrenceOut)

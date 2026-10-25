@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CreditCard,
   Shield,
@@ -150,6 +151,8 @@ const formatRequisites = (acc: (typeof DEMO_ACCOUNTS)[0]) =>
   `${acc.name}\nР/с ${acc.account}\nБИК ${acc.bik}\n(демо-реквизиты)`;
 
 export default function BanksPage() {
+  const router = useRouter();
+  const [demoCardIssued, setDemoCardIssued] = useState(false);
   const [items, setItems] = useState<Occurrence[]>([]);
   const [summary, setSummary] = useState<CurrencySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,6 +264,33 @@ export default function BanksPage() {
         </div>
       )}
 
+      {demoCardIssued && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="demo-card-title">
+          <div className="w-full max-w-md rounded-2xl border border-blue-400/20 bg-[#111] p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">DEMO ONLY</p>
+                <h2 id="demo-card-title" className="mt-1 text-xl font-semibold text-white">Виртуальная демо-карта выпущена</h2>
+              </div>
+              <button type="button" onClick={() => setDemoCardIssued(false)} className="rounded-lg px-2 py-1 text-neutral-400 hover:bg-white/10 hover:text-white" aria-label="Закрыть">Закрыть</button>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-white">Invoice Keeper</span>
+                <span className="rounded bg-white/15 px-2 py-1 text-[10px] font-bold tracking-widest text-white">DEMO</span>
+              </div>
+              <p className="my-8 font-mono text-xl tracking-[0.12em] text-white">•••• •••• •••• 4242</p>
+              <div className="flex items-end justify-between text-xs text-blue-100">
+                <div><p className="text-[10px] uppercase opacity-70">Держатель</p><p className="mt-1">DEMO USER</p></div>
+                <div><p className="text-[10px] uppercase opacity-70">Срок</p><p className="mt-1">12/30</p></div>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-5 text-amber-200">Это только визуальная тестовая карта. Она не является платёжным инструментом, не имеет настоящего PAN/CVC и не может использоваться для покупок.</p>
+            <button type="button" onClick={() => setDemoCardIssued(false)} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500">Готово</button>
+          </div>
+        </div>
+      )}
+
       <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -320,7 +350,7 @@ export default function BanksPage() {
           </button>
           <button
             type="button"
-            onClick={() => setNotice(true)}
+            onClick={() => router.push("/open-banking")}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#111] px-4 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06]"
           >
             <Landmark className="h-4 w-4 text-rose-400" />
@@ -328,7 +358,7 @@ export default function BanksPage() {
           </button>
           <button
             type="button"
-            onClick={() => showToast("Выпуск карт будет доступен после Open Banking")}
+            onClick={() => setDemoCardIssued(true)}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 px-5 text-sm font-semibold text-white shadow-[0_8px_20px_-4px_rgba(225,29,72,0.35)] transition hover:brightness-110 active:scale-[0.98]"
           >
             <CreditCard className="h-4 w-4" />

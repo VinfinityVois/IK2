@@ -10,6 +10,26 @@ type Match = { id:number; status:string; confidence:number; reason:string; trans
 type Notification = {id:number;title:string;message:string;kind:string;is_read:boolean;created_at:string};
 type Overview = {mode:string;provider:string;accounts_count:number;transactions_count:number;suggested_matches:number;confirmed_matches:number;unread_notifications:number;notice:string};
 
+function getApiErrorDetail(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return undefined;
+  }
+  const response = error.response;
+  if (typeof response !== "object" || response === null || !("data" in response)) {
+    return undefined;
+  }
+  const data = response.data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "detail" in data &&
+    typeof data.detail === "string"
+  ) {
+    return data.detail;
+  }
+  return undefined;
+}
+
 const money=(v:string|number,currency="EUR")=>new Intl.NumberFormat("en-IE",{style:"currency",currency,maximumFractionDigits:2}).format(Number(v)||0);
 const date=(v:string)=>new Date(v).toLocaleDateString("en-IE",{day:"2-digit",month:"short",year:"numeric"});
 
@@ -33,8 +53,8 @@ export default function OpenBankingPage() {
       ]);
       setOverview(o.data);setAccounts(a.data.items||[]);setTransactions(t.data.items||[]);
       setMatches(m.data.items||[]);setNotifications(n.data.items||[]);
-    } catch(e:any) {
-      setError(e?.response?.data?.detail || "Не удалось загрузить Open Banking. Убедитесь, что backend обновлён и вы вошли в систему.");
+    } catch(e: unknown) {
+      setError(getApiErrorDetail(e) || "Не удалось загрузить Open Banking. Убедитесь, что backend обновлён и вы вошли в систему.");
     }
   },[]);
   useEffect(()=>{void load();},[load]);
@@ -42,7 +62,7 @@ export default function OpenBankingPage() {
   const action=async(path:string,body?:unknown,success="Готово")=>{
     setBusy(true);setError("");setMessage("");
     try {await api.post(path,body??{});setMessage(success);await load();}
-    catch(e:any){setError(e?.response?.data?.detail||"Операция не выполнена");}
+    catch(e: unknown){setError(getApiErrorDetail(e)||"Операция не выполнена");}
     finally{setBusy(false);}
   };
 

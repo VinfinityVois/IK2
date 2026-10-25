@@ -102,7 +102,12 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, fetchMe } = useAuthStore();
+
+  useEffect(() => {
+    void fetchMe();
+  }, [fetchMe]);
+
   const items = nav.filter((n) => !("admin" in n && n.admin) || user?.role === "admin");
 
   return (

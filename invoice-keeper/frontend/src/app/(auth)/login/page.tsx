@@ -11,6 +11,42 @@ import { cn } from "@/lib/utils";
 
 const words = ["платежи", "аренду", "подписки", "серверы"];
 
+function getErrorDetail(err: unknown): unknown {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return undefined;
+  }
+
+  const response = err.response;
+  if (typeof response !== "object" || response === null || !("data" in response)) {
+    return undefined;
+  }
+
+  const data = response.data;
+  if (typeof data !== "object" || data === null || !("detail" in data)) {
+    return undefined;
+  }
+
+  return data.detail;
+}
+
+function formatValidationErrors(value: unknown): string {
+  if (!Array.isArray(value)) return "Ошибка регистрации";
+
+  return value
+    .map((item: unknown) => {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "msg" in item &&
+        typeof item.msg === "string"
+      ) {
+        return item.msg;
+      }
+      return String(item);
+    })
+    .join(", ");
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
@@ -35,13 +71,9 @@ export default function LoginPage() {
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
       router.push("/overview");
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      fail(
-        detail === "User is inactive"
-          ? "Аккаунт отключён"
-          : "Неверный логин или пароль"
-      );
+    } catch (err: unknown) {
+      const detail = getErrorDetail(err);
+      fail(detail === "User is inactive" ? "Аккаунт отключён" : "Неверный логин или пароль");
     } finally {
       setLoading(false);
     }
@@ -55,15 +87,15 @@ export default function LoginPage() {
       await login(username, password);
       sessionStorage.setItem("ik_welcome", "1");
       router.push("/overview");
-    } catch (err: any) {
-      const d = err?.response?.data?.detail;
-      fail(
-        typeof d === "string"
-          ? d
-          : Array.isArray(d)
-          ? d.map((x: any) => x.msg).join(", ")
-          : "Ошибка регистрации"
-      );
+    } catch (err: unknown) {
+      const detail = getErrorDetail(err);
+      if (typeof detail === "string") {
+        fail(detail);
+      } else if (Array.isArray(detail)) {
+        fail(formatValidationErrors(detail));
+      } else {
+        fail("Ошибка регистрации");
+      }
     } finally {
       setLoading(false);
     }
@@ -76,11 +108,6 @@ export default function LoginPage() {
     <div className="min-h-screen text-white overflow-hidden relative">
       <TopographyBackground
         className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#171717_0%,#000_100%)] text-blue-500/40"
-        levels={16}
-        speed={1}
-        scale={1}
-        peak={1}
-        interactive
       />
 
       {/* SVG decor */}
